@@ -397,7 +397,7 @@ class SI :
     
     def lba_normalization( self, lba, m ):
         return m*lba
-
+    
     def dummy( self,a,b):
         ""
 

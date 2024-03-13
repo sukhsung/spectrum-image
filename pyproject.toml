@@ -1,13 +1,14 @@
 [build-system]
-requires = ['setuptools>=61']
-build-backend = 'setuptools.build_meta'
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "eels"
-version = "0.2.1"
+version = "0.2.3"
 dependencies = [
   "numpy",
   "matplotlib",
+  "jupyterlab",
   "ipympl",
   "scipy",
   "tqdm"
