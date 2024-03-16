@@ -1,6 +1,12 @@
-# EELS
-Python Package for EELS (Electron Energy Loss Spectroscopy) data set.
-Built with Jupter lab interactivity in mind, with minimal dependencies
+# Spectrum-Image: Interactive Data Explorer for Spatial Spectroscopic Dataset
+Spectrum-Image is Python packag for spectroscopic data, built with Jupter lab interactivity in mind, with minimal dependencies
+Most of code is written with EELS (Electron Energy Loss Spectroscopy) in mind, but is relevant for any highdimensional spectroscopic dataset.
+
+# Relevant techniques:
+EELS (Electron Energy Loss Spectroscopy)
+RIXS (Resonant Inelastic Xray Scattering)
+Raman Spatial Mapping
+
 Check out the notebook example (`example_eels.ipynb`) to get started.
 
 ## Installation
