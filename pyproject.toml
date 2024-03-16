@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "eels"
-version = "0.2.3"
+name = "spectrum-image"
+version = "0.1.0"
 dependencies = [
   "numpy",
   "matplotlib",
@@ -27,6 +27,6 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sukhsung/eels"
-Repository = "https://github.com/sukhsung/eels"
-"Bug Tracker" = "https://github.com/sukhsung/eels/issues"
+Homepage = "https://github.com/sukhsung/spectrum-image"
+Repository = "https://github.com/sukhsung/spectrum-image"
+"Bug Tracker" = "https://github.com/sukhsung/spectrum-image/issues"

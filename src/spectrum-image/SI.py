@@ -6,6 +6,9 @@ from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, tqdm_notebook
 
+def testfunc():
+    print("hi'")
+
 
 class SI :
     def __init__( self, im_si, ADF=[], es=[] ):
@@ -49,6 +52,11 @@ class SI :
         self.roi_spectrum = np.mean( self.si[ yi:yf, xi:xf,:], axis=(0,1))
     
     def bin_energy_x2( self ):
+        if ( self.ne%2 ==1 ):
+            self.ne -= 1
+            self.es = self.es[0:-1]
+            self.si = self.si[:,:,0:-1]
+
         self.es = ( self.es[0::2]+self.es[1::2] )/2
         self.si = ( self.si[:,:,0::2] + self.si[:,:,1::2 ] )/2
 
@@ -57,6 +65,32 @@ class SI :
         self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
         self.e_bsub = (self.es[0], self.es[int(self.ne/8)])
         self.e_int  = (self.es[0], self.es[int(self.ne/8)])
+
+    def bin_x_x2( self ):
+        if ( self.nx%2 ==1 ):
+            self.nx -= 1
+            self.si = self.si[:,0:-1,:]
+            self.ADF = self.ADF[:,0:-1]
+
+        self.si = ( self.si[:,0::2,:] + self.si[:,1::2,: ] )/2
+        self.ADF = ( self.ADF[:,0::2] + self.ADF[:,1::2 ] )/2
+        (self.ny, self.nx, self.ne) = self.si.shape
+        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
+
+    def bin_y_x2( self ):
+        if ( self.ny%2 ==1 ):
+            self.ny -= 1
+            self.si = self.si[0:-1,:,:]
+            self.ADF = self.ADF[0:-1,:]
+
+        self.si = ( self.si[0::2,:,:] + self.si[1::2,:,: ] )/2
+        self.ADF = ( self.ADF[0::2,:] + self.ADF[1::2,: ] )/2
+        (self.ny, self.nx, self.ne) = self.si.shape
+        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
+
+    def bin_xy_x2( self ):
+        self.bin_x_x2()
+        self.bin_y_x2()
 
     def PSI_viewer( self, bg_type=None):
         self.bg_type = bg_type
@@ -137,7 +171,8 @@ class SI :
         self.ax_ylock     = fig.add_axes([0.75, 0.1, 0.2, 0.03])
 
         self.ax_ADF.matshow( self.ADF )
-        self.h_int = self.ax_int.matshow( self.integrate_SI(), vmin=0, vmax=1 )
+        im_int,dummy = self.integrate_SI()
+        self.h_int = self.ax_int.matshow( im_int, vmin=0, vmax=1 )
         self.rect_int = patches.Rectangle( (self.e_int[0], -SI_max), 
                                             self.e_int[1]-self.e_int[0], 2*SI_max,
                                             linewidth=1, edgecolor='y', facecolor='yellow', alpha=0.5)
@@ -227,7 +262,8 @@ class SI :
         self.rect_int.set_x( self.e_int[0] )
         self.rect_int.set_width( self.e_int[1]-self.e_int[0] )
         # print( self.integrate_SI()  )
-        self.h_int.set_data( self.normalize( self.integrate_SI() ) )
+        im_int,dummy = self.integrate_SI()
+        self.h_int.set_data( self.normalize( im_int ) )
 
     def update_bg( self ):
         fit_i_ch = self.eVtoCh( self.e_bsub[0], self.es)
@@ -239,15 +275,15 @@ class SI :
         
         bg_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
 
-        popt_pl,pcov_pl = curve_fit(bg_func, e_fit, y_fit, 
-                                    p0=p0,                                
-                                    bounds=bounds,
-                                    maxfev=1000, method='trf',
-                                    ftol= ftol)
-
-
-
-        bg_fit = bg_func(self.es, *popt_pl)
+        try:
+            popt_pl,pcov_pl = curve_fit(bg_func, e_fit, y_fit, 
+                                        p0=p0,                                
+                                        bounds=bounds,
+                                        maxfev=1000, method='trf',
+                                        ftol= ftol)
+            bg_fit = bg_func(self.es, *popt_pl)
+        except:
+            bg_fit = 0*self.roi_spectrum
 
         bsub = self.roi_spectrum-bg_fit
         bsub[0:fit_i_ch] = 0
@@ -279,7 +315,7 @@ class SI :
         int_i_ch = self.eVtoCh(self.e_int[0], self.es)
         int_f_ch = self.eVtoCh(self.e_int[1], self.es)
 
-        return np.sum( self.si[:,:, int_i_ch:int_f_ch], axis=(2) )
+        return np.sum( self.si[:,:, int_i_ch:int_f_ch], axis=(2) ), self.e_int
 
     def normalize( self, x ):
         if np.min(x) == np.max(x):
@@ -288,7 +324,7 @@ class SI :
             return (x-np.min(x))/(np.max(x)-np.min(x))
 
 
-    def bgsub_SI( self, e_bsub=None, bg_type="powerlaw"):
+    def bgsub_SI( self, e_bsub=None, bg_type="powerlaw", ftol=0.0005, gtol=0.00005,xtol=None):
         if e_bsub is not None:
             self.e_bsub = e_bsub
 
@@ -301,7 +337,7 @@ class SI :
         ## Fit Mean Spectrum to get a good guess Parameter
         mean_spec = np.mean( self.si, axis=(0,1))
         y_fit = mean_spec[ fit_i_ch:fit_f_ch]
-        ftol = np.max(mean_spec)*1e-5
+        # ftol = np.max(mean_spec)*1e-5
 
         bg_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
 
@@ -316,17 +352,23 @@ class SI :
         for i in range(self.nx):
             for j in range(self.ny):
                 y_fit = self.si[j,i,fit_i_ch:fit_f_ch]
-                popt_pl,pcov_pl=curve_fit(bg_func, e_fit, y_fit,
-                                        maxfev=50000,p0=p0,method='trf',
-                                        verbose = 0, ftol=ftol)
-                
 
-                bg_fit = bg_func(self.es, *popt_pl)
+                try:
+                    popt_pl,pcov_pl=curve_fit(bg_func, e_fit, y_fit,
+                                            maxfev=50000,p0=p0,method='trf',
+                                            verbose = 0, ftol=ftol, gtol=gtol,xtol=xtol)
+                    
+
+                    bg_fit = bg_func(self.es, *popt_pl)
+                except:
+                    bg_fit = 0
+
                 bsub = self.si[j,i]-bg_fit
                 bsub[0:fit_i_ch] = 0
                 bg_pl_SI[j,i,:] = bsub
                 pbar.update(1)
-        return bg_pl_SI
+                
+        return bg_pl_SI, self.e_bsub
     
     def bgsub_SI_lba( self, e_bsub=None, bg_type="powerlaw", gfwhm=5):
         if e_bsub is not None:
@@ -369,7 +411,7 @@ class SI :
                 bg_pl_SI[j,i,:] = bsub
                 pbar.update(1)
         
-        return bg_pl_SI
+        return bg_pl_SI, self.e_bsub
 
     def prepare_lba( self, e_bsub=None, gfwhm=5 ):
         if e_bsub is not None:
@@ -393,6 +435,7 @@ class SI :
                                             self.si[j,i,fit_i_ch:fit_f_ch])
                 lba_normalized[j,i,fit_i_ch:fit_f_ch] = lba_raw[j,i,fit_i_ch:fit_f_ch]*normalize
                 pbar2.update(1)
+
         return lba_normalized
     
     def lba_normalization( self, lba, m ):

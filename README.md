@@ -4,7 +4,7 @@ Built with Jupter lab interactivity in mind, with minimal dependencies
 Check out the notebook example (`example_eels.ipynb`) to get started.
 
 ## Installation
-`pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ eels`
+`pip install spectrum-image`
 
 ## Dependencies
 `matplotlib`
