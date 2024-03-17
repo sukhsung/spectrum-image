@@ -22,6 +22,7 @@ Check out the notebook example (`example_eels.ipynb`) to get started.
 
 ## Optional Dependencies for running example notebook
 `hyperspy`
+`tifffile`
 
 ## Acknowledgements
 Some functionalities (background subtraction, local background averaging) was copied from eels.py of https://github.com/paradimdata/Cornell_EM_SummerSchool_2021/tree/main/Tutorial%204%20-%20Spectroscopy

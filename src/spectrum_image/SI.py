@@ -92,7 +92,7 @@ class SI :
         self.bin_x_x2()
         self.bin_y_x2()
 
-    def PSI_viewer( self, bg_type=None):
+    def SI_viewer( self, bg_type=None):
         self.bg_type = bg_type
         SI_max = np.max(self.si)
 
@@ -159,7 +159,7 @@ class SI :
 
 
     
-    def PSI_integrator( self ):
+    def SI_integrator( self ):
         SI_max = np.max(self.si)
 
         fig = plt.figure(figsize=(6,5))

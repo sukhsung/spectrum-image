@@ -3,7 +3,7 @@ import numpy as np
 import copy
 from scipy.ndimage import affine_transform
 
-def remove_outlier( SI, threshold_multiplier=1, remove_nn=True):
+def remove_outlier( SI, threshold_multiplier=5, remove_nn=True):
     # remove outliers that are larger than threshold_multiplier*std + median of each spectrum
     # remove_nn also remove two nearest neighbor pixels
     # Outliers are replaced by medians
@@ -32,17 +32,17 @@ def remove_outlier( SI, threshold_multiplier=1, remove_nn=True):
     return SI_cleaned
 
 
-def get_hyperspy_data(rawSI):
-    params=rawSI.axes_manager
+def get_hyperspy_data(hs_SI):
+    params=hs_SI.axes_manager
     print(params)
-    ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
-    disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
-    rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
-    energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
-    pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
-    if len(energy)!= rawSI.z:
+    ch1=np.round(hs_SI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+    disp=np.round(hs_SI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+    hs_SI.z=int(hs_SI.axes_manager[2j].get_axis_dictionary()['size'])
+    energy= np.round(np.arange(ch1,ch1+hs_SI.z*disp,disp),4)
+    pxscale = hs_SI.axes_manager[0].get_axis_dictionary()['scale']
+    if len(energy)!= hs_SI.z:
         energy = energy[:-1]
-    return(energy, rawSI.data, pxscale, disp, params)
+    return(energy, hs_SI.data, pxscale, disp, params)
 
 def shear_y_SI( SI, ADF=None, angle=0 ):
     # angle = shear angle in degree
