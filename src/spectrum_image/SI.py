@@ -6,6 +6,11 @@ from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, tqdm_notebook
 
+from lmfit import Parameters, Minimizer
+
+
+
+
 def testfunc():
     print("hi'")
 
@@ -272,16 +277,13 @@ class SI :
         e_fit = self.es[ fit_i_ch:fit_f_ch]
         y_fit = self.roi_spectrum[fit_i_ch:fit_f_ch] 
         ftol = np.max(self.roi_spectrum)*1e-5
-        
-        bg_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
 
+        bg_func, d_func, params = self.prepare_bgfit( y_fit, e_fit )
         try:
-            popt_pl,pcov_pl = curve_fit(bg_func, e_fit, y_fit, 
-                                        p0=p0,                                
-                                        bounds=bounds,
-                                        maxfev=1000, method='trf',
-                                        ftol= ftol)
-            bg_fit = bg_func(self.es, *popt_pl)
+            min = Minimizer( bg_func, params, fcn_args=(e_fit,), fcn_kws={'data': y_fit})
+            # out = min.leastsq(Dfun=d_func, col_deriv=1)
+            out = min.least_squares()
+            bg_fit = bg_func(out.params, self.es)
         except:
             bg_fit = 0*self.roi_spectrum
 
@@ -297,17 +299,23 @@ class SI :
             r_g =0
         elif r_g >10:
             r_g = 10
-        c_g = y_fit[0]*(e_fit[0]**r_g)
+        A_g = y_fit[0]*(e_fit[0]**r_g)
 
         if self.bg_type == "LCPL":
-            p0 = (c_g, r_g, c_g, r_g)
-            bounds = ([0,0,0,0],[np.inf, 10, np.inf, 10])
+            params = Parameters()
+            params.add('A1', value=A_g*0.9, min=0)
+            params.add('r1', value=r_g, min=0, max=10)
+            params.add('A2', value=A_g*0.1, min=0)
+            params.add('r2', value=r_g, min=0, max=10)
             bg_func = self.LCPL
+            d_func  = self.d_LCPL
         elif self.bg_type == "powerlaw":
-            p0 = (c_g, r_g)
-            bounds = ([0,0],[np.inf,10])
+            params = Parameters()
+            params.add('A1', value=A_g, min=0)
+            params.add('r1', value=r_g, min=0, max=10)
             bg_func = self.powerlaw
-        return bg_func, p0, bounds
+            d_func  = self.d_powerlaw
+        return bg_func, d_func, params
 
     def integrate_SI( self, e_int=None ):
         if e_int is not None:
@@ -324,7 +332,7 @@ class SI :
             return (x-np.min(x))/(np.max(x)-np.min(x))
 
 
-    def bgsub_SI( self, e_bsub=None, bg_type="powerlaw", ftol=0.0005, gtol=0.00005,xtol=None):
+    def bgsub_SI( self, e_bsub=None, bg_type="powerlaw" ):#, ftol=0.0005, gtol=0.00005,xtol=None):
         if e_bsub is not None:
             self.e_bsub = e_bsub
 
@@ -337,29 +345,20 @@ class SI :
         ## Fit Mean Spectrum to get a good guess Parameter
         mean_spec = np.mean( self.si, axis=(0,1))
         y_fit = mean_spec[ fit_i_ch:fit_f_ch]
-        # ftol = np.max(mean_spec)*1e-5
+        ftol = np.max(mean_spec)*1e-5
 
-        bg_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-
-        p0,pcov_pl = curve_fit(bg_func, e_fit, y_fit, 
-                                    p0=p0,                                
-                                    bounds=bounds,
-                                    maxfev=1000, method='trf',
-                                    ftol= ftol)
         
         ## perform PL fit and background subtraction on each pixel.
         pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Background subtracting")
         for i in range(self.nx):
             for j in range(self.ny):
                 y_fit = self.si[j,i,fit_i_ch:fit_f_ch]
-
+                
+                bg_func, d_func, params = self.prepare_bgfit( y_fit, e_fit )
                 try:
-                    popt_pl,pcov_pl=curve_fit(bg_func, e_fit, y_fit,
-                                            maxfev=50000,p0=p0,method='trf',
-                                            verbose = 0, ftol=ftol, gtol=gtol,xtol=xtol)
-                    
-
-                    bg_fit = bg_func(self.es, *popt_pl)
+                    min = Minimizer( bg_func, params, fcn_args=(e_fit,), fcn_kws={'data': y_fit})
+                    out = min.leastsq(Dfun=d_func, col_deriv=1)
+                    bg_fit = bg_func(out.params, self.es)
                 except:
                     bg_fit = 0
 
@@ -387,25 +386,20 @@ class SI :
         y_fit = mean_spec[ fit_i_ch:fit_f_ch]
         ftol = np.max(mean_spec)*1e-5
 
-        bg_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-
-        p0,pcov_pl = curve_fit(bg_func, e_fit, y_fit, 
-                                    p0=p0,                                
-                                    bounds=bounds,
-                                    maxfev=1000, method='trf',
-                                    ftol= ftol)
         
         ## perform PL fit and background subtraction on each pixel.
         pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Background subtracting")
         for i in range(self.nx):
             for j in range(self.ny):
                 y_fit = lba_bg[j,i,fit_i_ch:fit_f_ch]
-                popt_pl,pcov_pl=curve_fit(bg_func, e_fit, y_fit,
-                                        maxfev=50000,p0=p0,method='trf',
-                                        verbose = 0, ftol=ftol)
-                
 
-                bg_fit = bg_func(self.es, *popt_pl)
+
+                bg_func, d_func, params = self.prepare_bgfit( y_fit, e_fit )
+                min = Minimizer( bg_func, params, fcn_args=(e_fit,), fcn_kws={'data': y_fit})
+                out = min.leastsq(Dfun=d_func, col_deriv=1)
+                bg_fit = bg_func(out.params, self.es)
+
+
                 bsub = self.si[j,i]-bg_fit
                 bsub[0:fit_i_ch] = 0
                 bg_pl_SI[j,i,:] = bsub
@@ -444,10 +438,6 @@ class SI :
     def dummy( self,a,b):
         ""
 
-    def LCPL( self, energy, c1, r1, c2, r2):
-        return c1*energy**(-r1) + c2*energy**(-r2)
-    def powerlaw( self, energy, c, r):
-        return c*energy**(-r)
     def eVtoCh(self, energy, array):
         return int(np.squeeze(np.argwhere(array == self.find_nearest(array,energy))))
     def ChtoeV(self, channel, array):
@@ -464,6 +454,45 @@ class SI :
         array = np.asarray(array)
         idx = (np.abs(array - value)).argmin()
         return array[idx]
+    
+    def LCPL( self, params, x, data=None):
+        A1 = params['A1']
+        r1 = params['r1']
+        A2 = params['A2']
+        r2 = params['r2']
 
+        model = A1 * ( x**(-r1) ) + A2 * ( x**(-r2) ) 
+        if data is None:
+            return model
+        return (data-model)
+    
+    def d_LCPL( self, params, x, data=None):
+        A1 = params['A1']
+        r1 = params['r1']
+        A2 = params['A2']
+        r2 = params['r2']
 
+        dfdA1 = x**(-r1)
+        dfdr1 = -r1*A1*(x**(-r1-1))
+        dfdA2 = x**(-r2)
+        dfdr2 = -r2*A2*(x**(-r2-1))
 
+        return np.array( [dfdA1, dfdr1, dfdA2, dfdr2])
+
+    def powerlaw(self, params, x, data=None):
+        A1 = params['A1']
+        r1 = params['r1']
+
+        model = A1 * ( x**(-r1) )
+        if data is None:
+            return model
+        return (data-model)
+
+    def d_powerlaw( self, params, x, data=None):
+        A1 = params['A1']
+        r1 = params['r1']
+
+        dfdA = x**(-r1)
+        dfdr = -r1*A1*(x**(-r1-1))
+
+        return np.array( [dfdA, dfdr])

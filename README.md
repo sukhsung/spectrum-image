@@ -19,6 +19,7 @@ Check out the notebook example (`example_eels.ipynb`) to get started.
 `scipy`
 `tqdm`
 `numpy`
+`lmfit`
 
 ## Optional Dependencies for running example notebook
 `hyperspy`
