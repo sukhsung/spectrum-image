@@ -86,27 +86,7 @@ def shear_x_SI( si, ADF=None, angle=0 ):
         return si_shear
     
 
-def lorentzian( params, x, data=None ):
 
-    A = params['A']
-    e0 = params['e0']
-    gm = params['gm']
-    
-    model = A/( ((x-e0)/gm)**2 + 1 )
-    if data is None:
-        return model
-    return model-data
-
-def gaussian( params, x, data=None ):
-    A  = params['A']
-    e0 = params['e0']
-    gm = params['gm']
-    sg = gm/(2*np.log(2))
-    
-    model = A*np.exp( -0.5*( ((x-e0)/sg)**2 ) )
-    if data is None:
-        return model
-    return model-data
 
 def fit_zeroloss_si( si, es, pk_func=gaussian, ftol = 1e-5 ):
     (ny, nx, ne) = si.shape
@@ -117,11 +97,9 @@ def fit_zeroloss_si( si, es, pk_func=gaussian, ftol = 1e-5 ):
     e_fit = es[  e_bound_ind[0]:e_bound_ind[1] ]
     si_fit = si[ :,:, e_bound_ind[0]:e_bound_ind[1] ].copy()
 
-
-
     A0s = np.zeros( (ny,nx) )
     e0s = np.zeros( (ny,nx) )
-    gms = np.zeros( (ny,nx) )
+    sgs = np.zeros( (ny,nx) )
 
 
     pbar = tqdm_notebook(total = (nx)*(ny),desc = "Fitting Zeroloss Peak")
@@ -134,36 +112,35 @@ def fit_zeroloss_si( si, es, pk_func=gaussian, ftol = 1e-5 ):
             e0 = e_fit[ind_max]
             ind_hm = np.argmin( np.abs( cur_spec-A0/2 ) )
             gm0 = np.abs( e_fit[ind_max] - e_fit[ind_hm] )
+            sg0 = gm0/(2*np.log(2))
 
-            params = Parameters()
-            params.add('A',  value=A0, min=A0/2, max=A0*2)
-            params.add('e0', value=e0, min=e0-2, max=e0+2)
-            params.add('gm', value=gm0, min=gm0/2, max=gm0*2)
-
+            params = [A0, e0, sg0]
+            bounds = ([A0/2,e0-2, sg0/2],
+                      [A0*2,e0+2, sg0*2])
             # try:
-            min = Minimizer( pk_func, params, fcn_args=(e_fit,), fcn_kws={'data': cur_spec})
-            out = min.leastsq()
-                # out = min.leastsq(Dfun=d_func, col_deriv=1)
+            p_fit, cov_fit = curve_fit( pk_func, e_fit, cur_spec, p0=params, bounds=bounds, 
+                                        method='trf',jac=d_gaussian, ftol=ftol, gtol=ftol*0.1 )
             # except:
             #     fig,ax = plt.subplots(1)
             #     plt.plot( e_fit, cur_spec )
             
-            A0s[i,j] = out.params['A'].value
-            e0s[i,j] = out.params['e0'].value
-            gms[i,j] = out.params['gm'].value
+            A0s[i,j] = params[0]
+            e0s[i,j] = params[1]
+            sgs[i,j] = params[2]
 
             # if i ==0 and j==0 :
             #     fig,ax = plt.subplots(1)
             #     plt.plot( e_fit, cur_spec )
-            #     plt.plot( e_fit, pk_func( e_fit, *popt_pl ))
+            #     plt.plot( e_fit, pk_func(e_fit,*p_fit))
             #     plt.vlines( [0,e0s[0,0]], 0, A0s[i,j])
             #     ax.set_xlim(-5,5)
             #     return
             
             pbar.update(1)
+    pbar.close()
 
 
-    return A0s, e0s, gms
+    return A0s, e0s, sgs
 
 
 def shift_zeroloss_SI( si, es, shifts ):
@@ -190,6 +167,7 @@ def shift_zeroloss_SI( si, es, shifts ):
             # spec_shifted = shift(cur_spec, cur_shift, order=1, mode='constant', cval=0.0, prefilter=False)
             si_shifted[i,j] = spec_shifted
             pbar.update(1)
+    pbar.close()
 
     min_shift = int( np.floor( np.min( shifts_ind )) )
     max_shift = int( np.ceil( np.max( shifts_ind )) )
