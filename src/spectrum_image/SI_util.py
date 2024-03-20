@@ -5,6 +5,7 @@ from scipy.optimize import curve_fit
 from scipy.ndimage import affine_transform
 from sklearn.decomposition import PCA
 from tqdm import tqdm, tqdm_notebook
+import spectrum_image.SI_lineshapes as ls
 
 from lmfit import Parameters, Minimizer
 
@@ -88,10 +89,9 @@ def shear_x_SI( si, ADF=None, angle=0 ):
 
 
 
-def fit_zeroloss_si( si, es, pk_func=gaussian, ftol = 1e-5 ):
+def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_gaussian, ftol = 1e-5 ):
     (ny, nx, ne) = si.shape
 
-    e_bound = (-3,3)
     e_bound_ind = ( np.argmin( np.abs( es-e_bound[0] )),np.argmin( np.abs( es-e_bound[1] )) )
 
     e_fit = es[  e_bound_ind[0]:e_bound_ind[1] ]
@@ -112,28 +112,35 @@ def fit_zeroloss_si( si, es, pk_func=gaussian, ftol = 1e-5 ):
             e0 = e_fit[ind_max]
             ind_hm = np.argmin( np.abs( cur_spec-A0/2 ) )
             gm0 = np.abs( e_fit[ind_max] - e_fit[ind_hm] )
-            sg0 = gm0/(2*np.log(2))
+            sg0 = gm0/np.sqrt(2*np.log(2))
+
 
             params = [A0, e0, sg0]
             bounds = ([A0/2,e0-2, sg0/2],
                       [A0*2,e0+2, sg0*2])
-            # try:
-            p_fit, cov_fit = curve_fit( pk_func, e_fit, cur_spec, p0=params, bounds=bounds, 
-                                        method='trf',jac=d_gaussian, ftol=ftol, gtol=ftol*0.1 )
-            # except:
-            #     fig,ax = plt.subplots(1)
-            #     plt.plot( e_fit, cur_spec )
+            # print( params)
+            # print( bounds)
+            try:
+                p_fit, cov_fit = curve_fit( pk_func, e_fit, cur_spec, p0=params, bounds=bounds, 
+                                        method='trf',jac=d_func, ftol=ftol, gtol=ftol )
+                A0s[i,j] = p_fit[0]
+                e0s[i,j] = p_fit[1]
+                sgs[i,j] = p_fit[2]
+            except:
+                fig,ax = plt.subplots(1)
+                plt.plot( e_fit, cur_spec )
+                return
+                ""
             
-            A0s[i,j] = params[0]
-            e0s[i,j] = params[1]
-            sgs[i,j] = params[2]
 
             # if i ==0 and j==0 :
             #     fig,ax = plt.subplots(1)
             #     plt.plot( e_fit, cur_spec )
+            #     print( params )
+            #     print( bounds)
             #     plt.plot( e_fit, pk_func(e_fit,*p_fit))
             #     plt.vlines( [0,e0s[0,0]], 0, A0s[i,j])
-            #     ax.set_xlim(-5,5)
+            #     # ax.set_xlim(-5,5)
             #     return
             
             pbar.update(1)

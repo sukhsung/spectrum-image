@@ -341,8 +341,10 @@ class SI :
     def bgsub_SI( self, e_bsub=None, bg_type='powerlaw', LCPL_percentile=(5,95), lba=False, plot_bg_coef= False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):
         if bg_type=='powerlaw':
             return self.bgsub_powerlaw_SI( e_bsub=e_bsub, lba=lba, plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
-        elif bg_type=='LCPL':
-            return self.bgsub_LCPL_SI( e_bsub=e_bsub, lba=lba, LCPL_percentile=(5,95), plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
+        elif bg_type=='LCPL_Fixed':
+            return self.bgsub_LCPL_Fixed_SI( e_bsub=e_bsub, lba=lba, LCPL_percentile=(5,95), plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
+        elif bg_type=='LCPL_Free':
+            return self.bgsub_LCPL_Free_SI( e_bsub=e_bsub, lba=lba, plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
 
     def bgsub_powerlaw_SI( self, e_bsub=None, lba=False, plot_bg_coef= False, lba_gfwhm=5, ftol=0.0005, gtol=0.0005):
         if e_bsub is not None:
@@ -398,7 +400,111 @@ class SI :
 
         return bg_pl_SI, self.e_bsub
     
-    def bgsub_LCPL_SI( self, e_bsub=None, lba=False, LCPL_percentile=(5,95), plot_bg_coef=False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):#,xtol=None):
+
+    def bgsub_LCPL_Free_SI( self, e_bsub=None, lba=False, plot_bg_coef=False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):#,xtol=None):
+        if e_bsub is not None:
+            self.e_bsub = e_bsub
+
+
+        #### Do standard Powerlaw fitting to generate guesses
+        self.bg_type = 'powerlaw'
+        bg_pl_SI = np.zeros_like(self.si)
+        fit_i_ch = self.eVtoCh(self.e_bsub[0], self.es)
+        fit_f_ch = self.eVtoCh(self.e_bsub[1], self.es)
+        e_fit = self.es[fit_i_ch:fit_f_ch]
+
+        #### Setup for LBA if requested
+        if lba :
+            si_fit = self.prepare_lba( lba_gfwhm=lba_gfwhm )
+        else :
+            si_fit = self.si.copy()[:,:,fit_i_ch:fit_f_ch]
+    
+        ## Fit Mean Spectrum to get a good guess Parameter
+        mean_spec = np.mean( si_fit, axis=(0,1))
+        y_fit = mean_spec        
+        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
+        
+        ## perform PL fit on each pixel.
+        rs = np.zeros( (self.ny, self.nx) )
+        As = np.zeros( (self.ny, self.nx) )
+        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Fitting Normal Powerlaw")
+        for i in range(self.ny):
+            for j in range(self.nx):
+                y_fit = si_fit[i,j]
+                
+                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
+                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
+            
+                As[i,j] = p_fit[0]
+                rs[i,j] = p_fit[1]
+                pbar.update(1)
+        pbar.close()
+
+        #### LCPL starts here
+        self.bg_type = 'LCPL'
+        y_fit = mean_spec       
+        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
+        ## Get (5, 95)% percentile of exponents
+        r1s = np.zeros( (self.ny, self.nx) )
+        r2s = np.zeros( (self.ny, self.nx) )
+        A1s = np.zeros( (self.ny, self.nx) )
+        A2s = np.zeros( (self.ny, self.nx) )
+
+        ## Get (5, 95)% percentile of exponents
+        r_0595 = np.percentile( rs, (0,95) )
+
+        p0 = (p0[0], r_0595[0], p0[2], r_0595[1])
+
+        bounds = ([     0, 0,      0, 0], 
+                  [np.inf, 10, np.inf, 10])
+
+
+        ## Fit LCPL
+        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "LCPL Background subtracting")
+        for i in range(self.ny):
+            for j in range(self.nx):
+                y_fit = si_fit[i,j]
+                
+                
+                # try:
+                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
+                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
+            
+                bg_fit = bg_func(self.es, *p_fit)
+                # except:
+                #     bg_fit = 0
+
+                bsub = self.si[i,j]-bg_fit
+                bsub[0:fit_i_ch] = 0
+                bg_pl_SI[i,j,:] = bsub
+
+                A1s[i,j] = p_fit[0]
+                r1s[i,j] = p_fit[1]
+                A2s[i,j] = p_fit[2]
+                r2s[i,j] = p_fit[3]
+                pbar.update(1)
+        pbar.close()
+
+        if plot_bg_coef:
+            fig,ax=plt.subplots(3,2)
+            fig.suptitle( 'LCPL: A1*E^(-r1)+A2*E^(-r2)' )
+            ax[0,1].matshow(r1s)
+            ax[0,1].set_title('r1')
+            ax[1,1].matshow(r2s)
+            ax[1,1].set_title('r2')
+            ax[0,0].matshow(A1s)
+            ax[0,0].set_title('A1')
+            ax[1,0].matshow(A2s)
+            ax[1,0].set_title('A2')
+
+            ax[2,0].matshow(As)
+            ax[2,0].set_title('Powerlaw Guess (A)')
+            ax[2,1].matshow(rs)
+            ax[2,0].set_title('Powerlaw Guess (r)')
+                
+        return bg_pl_SI, self.e_bsub
+    
+    def bgsub_LCPL_Fixed_SI( self, e_bsub=None, lba=False, LCPL_percentile=(5,95), plot_bg_coef=False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):#,xtol=None):
         if e_bsub is not None:
             self.e_bsub = e_bsub
 
@@ -453,9 +559,6 @@ class SI :
         bounds = ([     0, r_0595[0]*0.97,      0, r_0595[1]*0.97], 
                   [np.inf, r_0595[0]*1.03, np.inf, r_0595[1]*1.03])
 
-        print( p0 )
-        print( bounds[0] )
-        print( bounds[1] )
 
         ## Fit LCPL
         pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "LCPL Background subtracting")
