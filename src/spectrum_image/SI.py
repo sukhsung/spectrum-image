@@ -7,14 +7,27 @@ from scipy.ndimage import gaussian_filter
 from tqdm import tqdm, tqdm_notebook
 import spectrum_image.SI_lineshapes as ls
 
-# from lmfit import Parameters, model, Minimizer, minimize
-# from lmfit.models import PowerLawModel
+class edge:
+    def __init__( self, label="", e_bsub=None, e_int=None ):
+        self.label  = label
+        self.e_bsub = e_bsub
+        self.e_int  = e_int
 
+    def from_KEM( self, edge_KEM ):
+        self.label = edge_KEM[0]
+        self.e_bsub = (edge_KEM[1], edge_KEM[2])
+        self.e_int = (edge_KEM[3], edge_KEM[4])
 
+    def __str__( self ):
+        s = "{}:".format(self.label)
+        if self.e_bsub is not None:
+            s+= " Background ({}-{})".format(*self.e_bsub)
+        if self.e_int is not None:
+            s+= " Integration ({}-{})".format(*self.e_int)
+        return s
 
-
-def testfunc():
-    print("hi'")
+    def __repr__( self ):
+        return self.__str__()
 
 
 class SI :
@@ -25,7 +38,6 @@ class SI :
         (self.ny, self.nx, self.ne) = self.si.shape
         self.mean_spectrum = np.mean( self.si, axis=(0,1))
         self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
-
         
         ADF = np.asarray( ADF )
         if not ADF.any():

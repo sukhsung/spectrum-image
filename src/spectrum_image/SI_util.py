@@ -68,7 +68,6 @@ def shear_y_SI( si, ADF=None, angle=0 ):
     else:
         return si_shear
 
-
 def shear_x_SI( si, ADF=None, angle=0 ):
     # angle = shear angle in degree
     if angle == 0:
@@ -86,7 +85,24 @@ def shear_x_SI( si, ADF=None, angle=0 ):
     else:
         return si_shear
     
-
+def shear_x_img( img, angle=0 ):
+    # angle = shear angle in degree
+    if angle == 0:
+        return img
+    a = np.tan( angle*np.pi/180 )
+    shear_matrix_ADF = [[1, 0],[a, 1]]
+    img_shear =affine_transform(img, shear_matrix_ADF, order=1)
+    return img_shear
+    
+def shear_y_img( img, angle=0 ):
+    # angle = shear angle in degree
+    if angle == 0:
+        return img
+    a = np.tan( angle*np.pi/180 )
+    shear_matrix_ADF = [[1, a],[0, 1]]
+    img_shear =affine_transform(img, shear_matrix_ADF, order=1)
+    return img_shear
+    
 
 
 def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_gaussian, ftol = 1e-5 ):
@@ -136,7 +152,7 @@ def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_
             # if i ==0 and j==0 :
             #     fig,ax = plt.subplots(1)
             #     plt.plot( e_fit, cur_spec )
-            #     print( params )
+            #     print( params )``
             #     print( bounds)
             #     plt.plot( e_fit, pk_func(e_fit,*p_fit))
             #     plt.vlines( [0,e0s[0,0]], 0, A0s[i,j])
