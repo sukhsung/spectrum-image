@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import RangeSlider, RectangleSelector, CheckButtons
+from matplotlib.widgets import RangeSlider, RectangleSelector, SpanSelector, CheckButtons
 import matplotlib.patches as patches
 from scipy.optimize import curve_fit
 from scipy.ndimage import gaussian_filter
@@ -28,6 +28,123 @@ class edge:
 
     def __repr__( self ):
         return self.__str__()
+
+
+class SIbrowser:
+    
+    def __init__( self, si, energy, im_adf=None, cmap='gray', figsize=(9,4), **kwargs):
+        ######### Initialize browser object ##########
+        self.si = si
+        self.energy = energy
+        self.im_adf = im_adf
+        self.im_inel =np.mean(si,axis=(-1))
+
+        self.spectrum1=np.mean(si,axis=(0,1))
+        self.spectrum2=np.mean(si,axis=(0,1))
+        
+        ##############Initialize Display#################
+        self.fig=plt.figure(figsize=figsize)
+
+        self.ax= {'inel':None,'spec':None,'bttn':None}
+        self.ax['inel']=self.fig.add_axes([0.05,0.3,0.425,0.6]) # Image
+        self.ax['spec']=self.fig.add_axes([0.55,0.3,0.425,0.6]) # Spectrum
+        self.ax['bttn']=self.fig.add_axes([0.88,0.012,0.1,0.2]) # Button
+        self.ax['bttn'].axis('off')
+        ##############################################
+        # Initialize plot handles
+        self.h = {'inel':None, 'spec1':None, 'spec2':None}
+
+        ## Inelastic Image
+        self.h['inel']  = self.ax['inel'].matshow(self.im_inel,cmap = cmap)
+        self.ax['inel'].set_axis_off()
+        self.ax['inel'].set_title('Inelastic image')
+        ## Spectra
+        self.h['spec1'], =self.ax['spec'].plot(self.energy,self.spectrum1,color='maroon')
+        self.h['spec2'], =self.ax['spec'].plot(self.energy,self.spectrum2,color='k',alpha=0)
+
+        self.ax['spec'].set_ylim([self.spectrum1.min(),self.spectrum1.max()])
+        self.ax['spec'].set_xlim([self.energy.min(),self.energy.max()])
+        self.ax['spec'].set_yticks([])
+        self.ax['spec'].set_xlabel('Energy (keV)')
+        self.ax['spec'].set_ylabel('Intensity')
+        self.ax['spec'].set_title('EELS spectrum')
+        ##############################################
+        results_dict={}
+        for key in ['spectrum','image','roi','energy_span']:
+            results_dict[key]=[]
+        
+        ################### Selectors ###################
+        self.ui = {'roi1':None, 'roi2':None, 'spec':None, 'logscale':None}
+        self.ui['roi1'] = RectangleSelector(self.ax['inel'], self.onselect_function_real_space, button=[1],
+                                        useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
+                                        interactive=True,props=dict(facecolor='crimson',edgecolor='crimson',alpha=0.2,fill=True),
+                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True
+        
+        self.ui['roi2'] = RectangleSelector(self.ax['inel'], self.onselect_function_real_space, button=[3],
+                                        useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
+                                        interactive=True,props=dict(facecolor='royalblue',edgecolor='royalblue',alpha=0.2,fill=True),
+                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True)
+            
+        self.ui['span_spec'] = SpanSelector(self.ax['spec'], self.onselect_function_spectrum_space, button=[1],
+                                            useblit=True, minspan=1,direction="horizontal",
+                                            interactive=True,props=dict(facecolor='green',edgecolor='green',alpha=0.2,fill=True),
+                                            grab_range=10, drag_from_anywhere=True)
+        
+
+        self.ui['logscale']=CheckButtons(self.ax['bttn'],["Log Scale"],useblit=True ,)
+        self.ui['logscale'].on_clicked(self.scale_button)
+        
+
+        ############### Event Handlers ###################
+    def onselect_function_real_space(self, eclick, erelease):
+        
+        real_roi1 = np.array(self.ui['roi1'].extents).astype('int')
+        real_roi2 = np.array(self.ui['roi2'].extents).astype('int')
+        
+        self.spectrum1=np.mean(self.si[int(real_roi1[2]):int(real_roi1[3]),int(real_roi1[0]):int(real_roi1[1]),:],axis=(0,1))
+        self.spectrum2=np.mean(self.si[int(real_roi2[2]):int(real_roi2[3]),int(real_roi2[0]):int(real_roi2[1]),:],axis=(0,1))
+
+        self.update_spectrum1()
+        self.update_spectrum2()
+
+    def onselect_function_spectrum_space(self, xmin, xmax):
+        indmin, indmax = np.searchsorted(self.energy, (xmin, xmax))
+        en_ranges=[xmin,xmax]
+        
+        self.update_image([indmin,indmax])
+
+
+    ################### Update Functions ###################
+    def update_spectrum1(self):
+        self.h['spec1'].set_ydata(self.spectrum1)
+        self.h['spec1'].set_color('maroon')
+        self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
+        
+    def update_spectrum2(self):
+        self.h['spec2'].set_ydata(self.spectrum2)
+        self.h['spec2'].set_alpha(1)
+        self.h['spec2'].set_color('cadetblue')
+        self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
+        
+    def update_image(self,  x):
+        new_im = np.mean(self.si[:,:,x[0]:x[1]],axis=(-1))
+        self.h['inel'].set_array(new_im)
+        self.h['inel'].autoscale()
+        
+    def scale_button(self, event):
+        if self.ax['spec'].get_yscale()=='linear':
+            
+            self.ax['spec'].set_yscale('log')
+            self.ax['spec'].set_ylabel('Log Intensity')
+            self.ax['spec'].set_yticks([])
+        else:
+            
+            self.ax['spec'].set_yscale('linear')
+            self.ax['spec'].set_ylabel('Intensity')
+            self.ax['spec'].set_yticks([])
+
+
+
 
 
 class SI :
@@ -110,6 +227,7 @@ class SI :
     def bin_xy_x2( self ):
         self.bin_x_x2()
         self.bin_y_x2()
+
 
     def SI_viewer( self, bg_type=None):
         self.bg_type = bg_type
