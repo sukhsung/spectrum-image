@@ -81,17 +81,17 @@ class SIbrowser:
         ################### Selectors ###################
         self.ui = {'roi1':None, 'roi2':None, 'spec':None, 'logscale':None}
         self.ui['roi1'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
-                                        useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
+                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
                                         interactive=True,props=dict(facecolor='crimson',edgecolor='crimson',alpha=0.2,fill=True),
                                         handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True
         
         self.ui['roi2'] = RectangleSelector(self.ax['inel'], self.dummy, button=[3],
-                                        useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
+                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
                                         interactive=True,props=dict(facecolor='royalblue',edgecolor='royalblue',alpha=0.2,fill=True),
                                         handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True)
             
         self.ui['span_spec'] = SpanSelector(self.ax['spec'], self.dummy, button=[1],
-                                            useblit=True, minspan=1,direction="horizontal",
+                                            useblit=False, minspan=1,direction="horizontal",
                                             interactive=True,props=dict(facecolor='green',edgecolor='green',alpha=0.2,fill=True),
                                             grab_range=10, drag_from_anywhere=True)
         
@@ -202,10 +202,13 @@ class fitbrowser:
         ##############Set Initial plot#################
         self.fig=plt.figure(figsize=figsize,layout='constrained')
 
-        self.ax = {'inel':None, 'spec':None, 'slid':None, 'btn_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
+        self.ax = {'inel':None, 'spec':None, 'e_view':None, 'e_bsub':None, 'e_int':None,
+                    'btn_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
         self.ax['inel']=self.fig.add_axes([0.025,0.1,0.45,0.8]) # Image
         self.ax['spec']=self.fig.add_axes([0.525,0.45,0.45,0.45]) # Spectrum
-        self.ax['slid']=self.fig.add_axes([0.625,0.3,0.25,0.05]) # Range slider
+        self.ax['e_view']=self.fig.add_axes([0.625,0.30,0.25,0.05]) # Range slider
+        self.ax['e_bsub']=self.fig.add_axes([0.625,0.25,0.25,0.05]) # Range slider
+        self.ax['e_int'] =self.fig.add_axes([0.625,0.20,0.25,0.05]) # Range slider
         self.ax['btn_fit']=self.fig.add_axes([0.520,0.1,0.125,0.1]) # Fit Buttons
         self.ax['btn_fint']=self.fig.add_axes([0.655,0.1,0.1,0.1]) # Fast Int Button
         self.ax['btn_int']=self.fig.add_axes([0.765,0.1,0.1,0.1]) # Int Button 
@@ -218,7 +221,7 @@ class fitbrowser:
         self.ax['inel'].set_axis_off()
         self.ax['inel'].set_title('Inelastic image')
 
-        ###################self.ax['spec']########################
+        ################## ax['spec'] #######################
         self.h['spec'], =self.ax['spec'].plot(energy, self.spectrum,color='k')
         self.h['bsub'], =self.ax['spec'].plot(energy, self.bsub,color='k',alpha=0)
         self.h['fit'],  =self.ax['spec'].plot(energy, self.fit,color='k',alpha=0)
@@ -231,7 +234,9 @@ class fitbrowser:
         self.ax['spec'].set_title('EELS spectrum')
 
         ## Initialize ui handles
-        self.ui = {'roi':None, 'spec1':None, 'spec2':None, 'slid_e':None, 'rad_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
+        self.ui = {'roi':None, 'spec1':None, 'spec2':None, 
+                   'slid_e_view':None, 'slid_e_bsub':None, 'slid_e_int':None,
+                   'rad_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
 
         ################### Selectors ###################
         self.ui['roi'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
@@ -251,21 +256,20 @@ class fitbrowser:
                                             grab_range=10, drag_from_anywhere=True)
         
 
-        if edge is None:
-            self.edge = eels_edge( " ", (energy[0],energy[-1]), (energy[0],energy[-1]) )
-        else:
-            self.edge= edge
-
-            self.ui['bsub'].extents = self.edge.e_bsub
-            self.onselect_function_spectrum_space1()
-
-            self.ui['int'].extents = self.edge.e_int
-            self.onselect_function_spectrum_space2()
+        self.ui['slid_e_view'] = RangeSlider(self.ax['e_view'],"Energy Range ",
+                                        energy[0], energy[-1], valinit=[energy[0],energy[-1]],
+                                        valstep=energy[1]-energy[0],dragging=True)
+        self.ui['slid_e_view'].on_changed( self.slider_view_action )
         
-        
-        self.ui['slid_e'] = Eslider=RangeSlider(self.ax['slid'],"Energy Range ",energy[0],energy[-1],valinit=[energy[0],energy[-1]],
-                        valstep=energy[1]-energy[0],dragging=True)
-        self.ui['slid_e'].on_changed( self.slider_action )
+        self.ui['slid_e_bsub'] = RangeSlider(self.ax['e_bsub'],"Background ",
+                                            energy[0], energy[-1], valinit=[energy[0],energy[-1]],
+                                            valstep=energy[1]-energy[0],dragging=True)
+        self.ui['slid_e_bsub'].on_changed( self.slider_bsub_action )
+
+        self.ui['slid_e_int'] = RangeSlider(self.ax['e_int'],"Integration ",
+                                          energy[0],energy[-1],valinit=[energy[0],energy[-1]],
+                                          valstep=energy[1]-energy[0],dragging=True)
+        self.ui['slid_e_int'].on_changed( self.slider_int_action )
 
 
         self.ax['btn_fit'].set_facecolor('0.85')
@@ -289,7 +293,26 @@ class fitbrowser:
         # self.ui['btn_save'].on_clicked(self.add_save_dict)
         
         # selector_collection = (spectrum_span_selector1,spectrum_span_selector2,rect_selector,ibutton,fibutton,Eslider,save_button,fitradio)
-        
+       
+        if edge is None:
+            self.edge = eels_edge( " ", (energy[0],energy[-1]), (energy[0],energy[-1]) )
+            self.ax['e_bsub'].set_visible(False)
+            self.ax['e_int'].set_visible(False)
+        else:
+            self.edge = edge
+            if self.edge.e_bsub is None:
+                self.edge.e_bsub = (energy[0],energy[-1])
+                self.ax['e_bsub'].set_visible(False)
+            else:
+                self.fit_check = True
+                self.ui['slid_e_bsub'].set_val( self.edge.e_bsub )
+
+            if self.edge.e_int is None:
+                self.edge.e_int = (energy[0],energy[-1])
+                self.ax['e_int'].set_visible(False)
+            else:
+                self.ui['slid_e_int'].set_val( self.edge.e_int )
+
         
         # return results_dict,selector_collection
 
@@ -300,7 +323,7 @@ class fitbrowser:
         self.rescale_yrange()
         
     def update_fit(self):
-        ind_min = eVtoCh( self.edge.e_bsub[0], self.energy )
+        ind_min = np.searchsorted( self.energy, self.edge.e_bsub[0])
 
         self.h['bsub'].set_ydata(self.bsub)
         self.h['bsub'].set_color('C1')
@@ -311,9 +334,8 @@ class fitbrowser:
         self.rescale_yrange()
         
     def update_image(self):
-        self.bsub_array = bgsub_fast(self.si, self.energy,self.edge.e_bsub,self.r,fit = self.fitfunction)
-        ind_min = eVtoCh( self.edge.e_int[0], self.energy )
-        ind_max = eVtoCh( self.edge.e_int[1], self.energy )
+        self.bsub_array = bgsub_SI_fast( self.si, self.energy, self.edge, self.r, fit=self.fitfunction )
+        ind_min, ind_max = np.searchsorted(self.energy, self.edge.e_int)
         self.im_inel = np.mean( self.bsub_array[:,:,ind_min:ind_max],axis=(-1))
         self.h['inel'].set_array( self.im_inel)
         self.h['inel'].autoscale()
@@ -321,17 +343,28 @@ class fitbrowser:
     def update_image_2(self):
 
         if self.lc:
-            _,self.bsub_array = bgsub_SI(self.si, self.energy,self.edge.e_bsub,gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
+            _,self.bsub_array = bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
                                     ftol=self.ftol,gtol=self.gtol,xtol=self.xtol,maxfev=self.maxfev,method=self.method)
         else:
-            self.bsub_array =   bgsub_SI(self.si, self.energy,self.edge.e_bsub,gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
+            self.bsub_array =   bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
                                     ftol=self.ftol,gtol=self.gtol,xtol=self.xtol,maxfev=self.maxfev,method=self.method)
         indmin, indmax = np.searchsorted(self.energy, self.edge.e_int)
         self.im_inel = np.mean(self.bsub_array[:,:,indmin:indmax],axis=(-1))
         self.h['inel'].set_array(self.im_inel)
         self.h['inel'].autoscale()
 
-    def slider_action(self, erange):
+    def slider_bsub_action(self, erange):
+        self.ui['bsub'].extents = erange
+        self.edge.e_bsub = erange
+        self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
+        self.r = fit_param[1]
+        self.update_fit()
+
+    def slider_int_action(self, erange):
+        self.ui['int'].extents = erange
+        self.edge.e_int = erange
+
+    def slider_view_action(self, erange):
 
         self.slider_check=True
         slidermin, slidermax = np.searchsorted(self.energy, (erange[0],erange[1]))
@@ -367,28 +400,28 @@ class fitbrowser:
                 self.update_spectrum()
                 
                 if self.fit_check:
-                    indmin, indmax = np.searchsorted(self.energy, self.edge.e_bsub)
-                    self.bsub, self.r = self.bgsub_1D(fit =  self.fitfunction)
-                    self.update_fit(indmin)
+                    self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
+                    self.r = fit_param[1]
+                    self.update_fit()
 
         elif event.inaxes in [self.ax['spec']]:
             if event.button == MouseButton.LEFT:
                 self.fit_check = True
-                self.edge.e_bsub = self.ui['bsub'].extents
-                try:
-                    self.bsub, self.r = self.bgsub_1D( fit = self.fitfunction)
-                except:
-                    pass
-                self.update_fit()
+                self.ax['e_bsub'].set_visible(True)
+                self.ui['slid_e_bsub'].set_val( self.ui['bsub'].extents )
+
             elif event.button == MouseButton.RIGHT:
                 self.int_check = True
-                self.edge.e_int = self.ui['int'].extents
+                self.ax['e_int'].set_visible(True)
+                self.ui['slid_e_int'].set_val( self.ui['int'].extents )
+
 
     def fitcheck(self, label):
         fitdict = {'Power law': 'pl', 'Exponential': 'exp', 'Linear': 'lin'}
         self.fitfunction = fitdict[label]
         if self.fit_check:
-            self.bsub, self.r = self.bgsub_1D(fit = self.fitfunction)
+            self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
+            self.r = fit_param[1]
             self.update_fit()
         
     def fint_button(self, event):
@@ -408,99 +441,8 @@ class fitbrowser:
     #     results_dict['bsub_SI'] = bsub_array
     #     results_dict['edge'] = [fit_window[0],fit_window[1],int_window[0],int_window[1]]
 
-    ########### background subtractions ########
-    def bgsub_1D(self, fit='pl', **kwargs):
-        """
-        Full background subtraction function for the 1D case-
-        Optional LBA, log fitting, LCPL, and exponential fitting.
-        For more information on non-linear fitting function, see information at https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html
 
-        Inputs:
-        raw_data - 1D spectrum
-        energy_axis - corresponding energy axis
-        edge - edge parameters defined by KEM convention
-
-        **kawrgs:
-        fit - choose the type of background fit, default == 'pl' == Power law. Can also use 'exp'== Exponential, 'lin' == Linear, 'lcpl' == LCPL.
-        log - Boolean, if true, log transform data and fit using QR factorization, default == False.
-        nstd - Standard deviation spread of r error from non-linear power law fitting. Default == 100.
-        ftol - default to 0.0005, Relative error desired in the sum of squares.
-        gtol - default to 0.00005, Orthogonality desired between the function vector and the columns of the Jacobian.
-        xtol - default to None, Relative error desired in the approximate solution.
-        maxfev - default to 50000, Only change if you are consistenly catching runtime errors and loosening gtol/ftols are not making a good enough fit.
-        method - default is 'trf', see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html#scipy.optimize.least_squares for description of methods
-        Note: may need stricter tolerances on ftol/gtol for noisier data. Anecdotally, a stricter gtol (as low as 1e-8) has a larger effect on the quality of the bgsub.
-
-        Outputs:
-        bg_1D - background spectrum
-        """
-
-        fit_start_ch, fit_end_ch = np.searchsorted(self.energy, self.edge.e_bsub)
-
-        zdim = len( self.spectrum )
-
-        ewin = self.energy[fit_start_ch:fit_end_ch]
-        esub = self.energy[fit_start_ch:]
-        bg_1D = np.zeros_like(self.spectrum)
-        fy = np.zeros((1,zdim))
-        fy[0,:] = self.spectrum
-
-        ## Determine if fitting is power law, exponenetial linear
-        if fit == 'exp':
-            fitfunc = ls.exponential
-        elif fit == 'pl':
-            fitfunc = ls.powerlaw
-        elif fit == 'lin':
-            fitfunc = ls.linear
-        else:
-            print('Did not except fitting function, please use either \'pl\' for powerlaw, \'exp\' for exponential, \'lin\' for linear or \'lcpl\' for LCPL.')
-
-
-    ## If fast fitting linear background, find fit using qr factorization
-        if fitfunc==ls.linear:
-            Blin = fy[:,fit_start_ch:fit_end_ch]
-            Alin = np.zeros((len(ewin),2))
-            Alin[:,0] = np.ones(len(ewin))
-            Alin[:,1] = ewin
-            Xlin = qrnorm(Alin,Blin.T)
-            Elin = np.zeros((len(esub),2))
-            Elin[:,0] = np.ones(len(esub))
-            Elin[:,1] = esub
-            bgndLINline = np.dot(Xlin.T,Elin.T)
-            bg_1D[fit_start_ch:] = self.spectrum[fit_start_ch:] - bgndLINline
-            rval = np.squeeze(Xlin[1,:])
-
-    ## If fast log fitting and powerlaw, find fit using qr factorization
-        elif fitfunc==ls.powerlaw:
-            Blog = fy[:,fit_start_ch:fit_end_ch]
-            Alog = np.zeros((len(ewin),2))
-            Alog[:,0] = np.ones(len(ewin))
-            Alog[:,1] = np.log(ewin)
-            Xlog = qrnorm(Alog,np.log(abs(Blog.T)))
-            Elog = np.zeros((len(esub),2))
-            Elog[:,0] = np.ones(len(esub))
-            Elog[:,1] = np.log(esub)
-            bgndPLline = np.exp(np.dot(Xlog.T,Elog.T))
-            bg_1D[fit_start_ch:] = self.spectrum[fit_start_ch:] - bgndPLline
-            rval = np.squeeze(Xlog[1,:])
-
-    ## If fast log fitting and exponential, find fit using qr factorization
-        elif fitfunc==ls.exponential:
-            Bexp = fy[:,fit_start_ch:fit_end_ch]
-            Aexp = np.zeros((len(ewin),2))
-            Aexp[:,0] = np.ones(len(ewin))
-            Aexp[:,1] = ewin
-            Xexp = qrnorm(Aexp,np.log(abs(Bexp.T)))
-            Eexp = np.zeros((len(esub),2))
-            Eexp[:,0] = np.ones(len(esub))
-            Eexp[:,1] = esub
-            bgndEXPline = np.exp(np.dot(Xexp.T,Eexp.T))
-            bg_1D[fit_start_ch:] = self.spectrum[fit_start_ch:] - bgndEXPline
-            rval = np.squeeze(Xexp[1,:])
-
-        return bg_1D,rval
  
-
 
 
 class SI :
@@ -1141,8 +1083,186 @@ class SI :
     
         
 
+########### background subtractions ########
+def bgsub_SI_fast( si, energy, edge, rval, fit='pl'):
+    """
+    Quick background subtraction based on fixed 'r' value
+    For Y = Ax + b + error with fixed 'A':
+        Y' = b + error. MSE is minimized when b = mean(Y)
+    """
+    xdim, ydim, zdim = np.shape( si )
 
-def bgsub_SI(raw_data, energy_axis, edge, **kwargs):
+    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+    y_win = si[:,:,fit_start_ch:fit_end_ch]
+    e_win = np.reshape( energy[fit_start_ch:fit_end_ch], (1,1,(fit_end_ch-fit_start_ch)) )
+    e_sub = np.reshape( energy[fit_start_ch:], (1,1,zdim-fit_start_ch) )
+
+    bg_SI = np.zeros_like( si )  
+
+    if fit == 'lin':
+        c_fit = np.reshape( np.mean( y_win-rval*e_win, axis=(2)), (xdim,ydim,1))
+        y_fit = c_fit + rval*e_sub
+
+    if fit == 'pl':
+        c_fit = np.reshape( np.mean( np.log(y_win)-rval*np.log(e_win), axis=(2)), (xdim,ydim,1))
+        y_fit = np.exp( c_fit + rval*np.log(e_sub) )
+
+    if fit == 'exp':
+        c_fit = np.reshape( np.mean( np.log(y_win)-rval*e_win, axis=(2)), (xdim,ydim,1))
+        y_fit = np.exp( c_fit + rval*e_sub )
+
+    bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
+    return bg_SI
+
+def bgsub_SI_linearized( si, energy, edge, fit='pl'):
+    """
+    Quick background subtraction based on fixed 'r' value
+    For Y = Ax + b + error with fixed 'A':
+        Y' = b + error. MSE is minimized when b = mean(Y)
+    """
+
+    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+    if (fit_end_ch - fit_start_ch)<2:
+        fit_end_ch = fit_start_ch+2
+    e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
+    e_sub = np.atleast_2d( energy[fit_start_ch:] ).T
+    zdim = len(energy)
+
+    if si.ndim == 1:
+        si = np.reshape( si, (1,1,zdim))
+    elif si.ndim == 2:
+        (nx,nz) = si.shape
+        si = np.reshape( si,(nx,1,zdim))
+
+    xdim, ydim, zdim = np.shape( si )
+    y_win = si[:,:,fit_start_ch:fit_end_ch]
+    y_win = np.reshape( y_win, (xdim*ydim, len(e_win))).T
+
+    bg_SI = np.zeros_like( si )  
+    if fit == 'lin':
+        e_win = np.insert( e_win, 0, 1, axis=1)
+        e_sub = np.insert( e_sub, 0, 1, axis=1)
+
+        b_fit = linear_regression_QR( y_win, e_win)
+        y_fit = e_sub @ b_fit
+
+    if fit == 'pl':
+        e_win = np.insert( np.log(e_win), 0, 1, axis=1)
+        e_sub = np.insert( np.log(e_sub), 0, 1, axis=1)
+
+        b_fit = linear_regression_QR( np.log(y_win), e_win )
+        y_fit = np.exp(e_sub @ b_fit )
+        
+        b_fit[0,:] = np.exp( b_fit[0,:] )
+
+    if fit == 'exp':
+        e_win = np.insert( e_win, 0, 1, axis=1)
+        e_sub = np.insert( e_sub, 0, 1, axis=1)
+
+        b_fit = linear_regression_QR( np.log(y_win), e_win )
+        y_fit = np.exp(e_sub @ b_fit )
+
+        b_fit[0,:] = np.exp( b_fit[0,:] )
+
+    b_fit = np.squeeze( np.reshape( b_fit, (2,xdim,ydim)) )
+    y_fit = np.reshape( y_fit.T, (xdim,ydim,len(e_sub)))
+    bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
+    bg_SI = np.squeeze( bg_SI )
+    return bg_SI, b_fit
+
+def bgsub_SI_nllsq( si, energy, edge, fit='pl',gfwhm=None, 
+                   maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None):
+    """
+    Quick background subtraction based on fixed 'r' value
+    For Y = Ax + b + error with fixed 'A':
+        Y' = b + error. MSE is minimized when b = mean(Y)
+    """
+
+    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+    e_win = energy[fit_start_ch:fit_end_ch]
+    e_sub = energy[fit_start_ch:]
+    zdim = len(energy)
+
+    if si.ndim == 1:
+        si = np.reshape( si, (1,1,zdim))
+    elif si.ndim == 2:
+        (nx,nz) = si.shape
+        si = np.reshape( si,(nx,1,zdim))
+
+    xdim, ydim, zdim = np.shape( si )
+    y_win = si[:,:,fit_start_ch:fit_end_ch]
+    bg_SI = np.zeros_like( si )
+
+    if fit == 'pl':
+        fitfunc = ls.powerlaw
+        fit_params = np.zeros(2,xdim,ydim)
+    elif fit == 'exp':
+        fitfunc = ls.exponential
+        fit_params = np.zeros(2,xdim,ydim)
+
+    mean_spec = np.mean( y_win, (0,1) )
+    popt_init,pcov_init = curve_fit( fitfunc, e_win, mean_spec, maxfev=maxfev,method=method,verbose=0 )
+    
+    pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
+    for i in range(xdim):
+        for j in range(ydim):
+            popt_pl,pcov_pl=curve_fit( fitfunc, e_win, y_win[i,j,:],p0=popt_init,
+                                      maxfev=maxfev,method=method,verbose = 0,
+                                      ftol=ftol, gtol=gtol, xtol=xtol)
+            
+            bg_SI[i,j,fit_start_ch:] = si[i,j,fit_start_ch:] - fitfunc(energy[fit_start_ch:], *popt_pl)
+            fit_params[:,i,j] = popt_pl
+            pbar1.update(1)
+
+    return bg_SI, fit_params
+
+def bgsub_SI_LC(si, energy, edge, rline, fit='pl', nstd=2):
+    bg_lcpl_SI = np.zeros_like(si)
+    rmu,rstd = norm.fit(rline)
+    rmin = rmu - nstd*rstd
+    rmax = rmu + nstd*rstd
+
+    (xdim, ydim, zdim) = si.shape
+    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+
+    
+    if fit=='pl':
+        fitname = 'power law'
+        e_win = np.log(energy[fit_start_ch:fit_end_ch])
+        e_sub = np.log(energy[fit_start_ch:])
+    elif fit=='exp':
+        fitname = 'exponential'
+        e_win = energy[fit_start_ch:fit_end_ch]
+        e_sub = energy[fit_start_ch:]
+
+    if nstd == 2:
+        print( '5th percentile {} = {}'.format( fitname, rmin))
+        print('95th percentile {} = {}'.format( fitname, rmax))
+    elif nstd == 1:
+        print('20th percentile {} = {}'.format( fitname, rmin))
+        print('80th percentile {} = {}'.format( fitname, rmax))
+    else:
+        print('Min {} = {}'.format( fitname, rmin))
+        print('Max {} = {}'.format( fitname, rmax))
+
+
+    e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
+    e_win = np.append( e_win**(-rmin), e_win**(-rmax), axis=1)
+    e_sub = np.atleast_2d( energy[fit_start_ch:] )
+    e_sub = np.append( e_sub**(-rmin), e_sub**(-rmax), axis=1)
+    
+    y_win = np.reshape( si[:,:,fit_start_ch:fit_end_ch], (xdim*ydim,len(e_win) ) )
+    b_fit = linear_regression_QR( y_win, e_win )
+    y_fit = e_sub @ b_fit
+
+    bgndLCPL = np.reshape( y_fit,(xdim,ydim,len(e_sub)))
+    bg_lcpl_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - bgndLCPL
+
+    return 1, bg_lcpl_SI
+
+
+def bgsub_SI(si, energy, edge, log=False, fit='pl', gfwhm=None, lc=False,
+             maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None, **kwargs):
     """
     Full background subtraction function-
     Optional LBA, log fitting, LCPL, and exponential fitting.
@@ -1174,316 +1294,83 @@ def bgsub_SI(raw_data, energy_axis, edge, **kwargs):
     if lcpl == True:
         bg_pl_SI, bg_lcpl_SI - background subtracted SI, LCPL background subtracted SI
     """
-    fit_start_ch = eVtoCh(edge[0], energy_axis)
-    fit_end_ch = eVtoCh(edge[1], energy_axis)
-    raw_data = raw_data.astype('float32')
-    if len(np.shape(raw_data)) == 2:
-        tempx,tempz = np.shape(raw_data)
-        raw_data = np.reshape(raw_data,(tempx,1,tempz))
-    if len(np.shape(raw_data)) == 1:
-        tempz = len(raw_data)
-        raw_data = np.reshape(raw_data,(1,1,tempz))
-    xdim, ydim, zdim = np.shape(raw_data)
-    ewin = energy_axis[fit_start_ch:fit_end_ch]
-    esub = energy_axis[fit_start_ch:]
-    bg_pl_SI = np.zeros_like(raw_data)
 
-## Special case: if there is vacuum in the SI and it is causing trouble with your LCPL fitting:
+    fit_start_ch, fit_end_ch = np.searchsorted( energy, edge.e_bsub)
+    si = si.astype('float32')
+    if len(np.shape(si)) == 2:
+        tempx,tempz = np.shape(si)
+        si = np.reshape(si,(tempx,1,tempz))
+    if len(np.shape(si)) == 1:
+        tempz = len(si)
+        si = np.reshape(si,(1,1,tempz))
+    xdim, ydim, zdim = np.shape(si)
+
+    ## Special case: if there is vacuum in the SI and it is causing trouble with your LCPL fitting:
     if 'mask' in kwargs.keys():
-        threshmask = kwargs['mask']
+        mask = kwargs['mask']
     elif 'threshold' in kwargs.keys():
         thresh = kwargs['threshold']
-        mean_back = np.mean(raw_data[:,:,fit_start_ch:fit_end_ch],axis=2)
-        threshmask = mean_back > thresh
+        mean_back = np.mean(si[:,:,fit_start_ch:fit_end_ch],axis=2)
+        mask = mean_back > thresh
     else:
-        mask = np.ones((xdim,ydim))
-        threshmask = mask == 1
+        mask = np.ones((xdim,ydim), dtype='bool')
 
-    if 'gfwhm' in kwargs.keys():
-        gfwhm = kwargs['gfwhm']
-        lba_raw = np.copy(raw_data)
-        lba_raw_normalized = np.copy(lba_raw)
-        for energychannel in np.arange(fit_start_ch,fit_end_ch):
-            lba_raw[:,:,energychannel] = gaussian_filter(raw_data[:,:,energychannel],sigma=gfwhm/2.35)
-        pbar = tqdm(total = (xdim)*(ydim),desc = "Normalizing")
-        for i in range(xdim):
-            for j in range(ydim):
-                lba_mean = np.mean(lba_raw[i,j,fit_start_ch:fit_end_ch])
-                data_mean = np.mean(raw_data[i,j,fit_start_ch:fit_end_ch])
-                lba_raw_normalized[i,j,fit_start_ch:fit_end_ch] = lba_raw[i,j,fit_start_ch:fit_end_ch]*data_mean/lba_mean
-                pbar.update(1)
+    ## Apply Local Background Averaging
+    if gfwhm is not None:
+        fit_data = prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch )
     else:
-        lba_raw_normalized = np.copy(raw_data)
+        fit_data = si
+    
+    ## If log fitting or linear fitting, find fit using qr factorization       
+    if log | (fit=='lin'):
+        bg_pl_SI, fit_params = bgsub_SI_linearized( fit_data, energy, edge, fit=fit )
 
-## Either fast fitting -> log fitting, Or slow fitting -> non-linear fitting
-    if 'log' in kwargs.keys():
-        log = kwargs['log']
-    else:
-        log = False
-
-## Fitting parameters for non-linear curve fitting if non-log based fitting
-    if 'ftol' in kwargs.keys():
-        ftol = kwargs['ftol']
-    else:
-        ftol = 0.0005
-    if 'gtol' in kwargs.keys():
-        gtol = kwargs['gtol']
-    else:
-        gtol = 0.00005
-    if 'xtol' in kwargs.keys():
-        xtol = kwargs['xtol']
-    else:
-        xtol = None
-    if 'maxfev' in kwargs.keys():
-        maxfev = kwargs['maxfev']
-    else:
-        maxfev = 50000
-    if 'method' in kwargs.keys():
-        method = kwargs['method']
-    else:
-        method = 'trf'
-
-## Determine if fitting is power law or exponenetial
-    if 'fit' in kwargs.keys():
-        fit = kwargs['fit']
-        if fit == 'exp':
-            fitfunc = ls.exponential
-            bounds = ([0, 0], [np.inf, np.inf])
-        elif fit == 'pl':
-            fitfunc = ls.powerlaw
-        elif fit == 'lin':
-            fitfunc = ls.linear
-        else:
-            print('Did not except fitting function, please use either \'pl\' for powerlaw, \'exp\' for exponential or \'lin\' for linear.')
-    else:
-        fitfunc = ls.powerlaw
-
-## If fast fitting linear background, find fit using qr factorization
-    if fitfunc==ls.linear:
-        Blin = np.reshape(lba_raw_normalized[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        Alin = np.zeros((len(ewin),2))
-        Alin[:,0] = np.ones(len(ewin))
-        Alin[:,1] = ewin
-        Xlin = qrnorm(Alin,Blin.T)
-        Elin = np.zeros((len(esub),2))
-        Elin[:,0] = np.ones(len(esub))
-        Elin[:,1] = esub
-        bgndLINline = np.dot(Xlin.T,Elin.T)
-        bgndLIN = np.reshape(bgndLINline,(xdim,ydim,len(esub)))
-        bg_pl_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndLIN
-
-## If fast log fitting and powerlaw, find fit using qr factorization
-    if log & (fitfunc==ls.powerlaw):
-        Blog = np.reshape(lba_raw_normalized[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        Alog = np.zeros((len(ewin),2))
-        Alog[:,0] = np.ones(len(ewin))
-        Alog[:,1] = np.log(ewin)
-        Xlog = qrnorm(Alog,np.log(abs(Blog.T)))
-        Elog = np.zeros((len(esub),2))
-        Elog[:,0] = np.ones(len(esub))
-        Elog[:,1] = np.log(esub)
-        bgndPLline = np.exp(np.dot(Xlog.T,Elog.T))
-        bgndPL = np.reshape(bgndPLline,(xdim,ydim,len(esub)))
-        bg_pl_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndPL
-        maskline = np.reshape(threshmask,(xdim*ydim))
-        rline_long = -1*Xlog[1,:]
+        maskline = np.reshape( mask,(xdim*ydim))
+        rline_long = -1*np.reshape( fit_params[1,:,:], (xdim*ydim) )
         rline = rline_long[maskline]
 
-## If fast log fitting and exponential, find fit using qr factorization
-    elif log & (fitfunc==ls.exponential):
-        Bexp = np.reshape(lba_raw_normalized[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        Aexp = np.zeros((len(ewin),2))
-        Aexp[:,0] = np.ones(len(ewin))
-        Aexp[:,1] = ewin
-        Xexp = qrnorm(Aexp,np.log(abs(Bexp.T)))
-        Eexp = np.zeros((len(esub),2))
-        Eexp[:,0] = np.ones(len(esub))
-        Eexp[:,1] = esub
-        bgndEXPline = np.exp(np.dot(Xexp.T,Eexp.T))
-        bgndEXP = np.reshape(bgndEXPline,(xdim,ydim,len(esub)))
-        bg_pl_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndEXP
-        maskline = np.reshape(threshmask,(xdim*ydim))
-        bline_long = -1*Xexp[1,:]
-        bline = bline_long[maskline]
+    ## Power law non-linear curve fitting using scipy.optimize.curve_fit
+    elif (fit=='pl') | (fit=='exp') : 
+        bg_pl_SI, fit_params = bgsub_SI_nllsq( fit_data, energy, edge, fit=fit, 
+                                           maxfev=maxfev, method=method,
+                                           ftol=ftol, gtol=gtol, xtol=xtol )
 
-## Power law non-linear curve fitting using scipy.optimize.curve_fit
-    elif ~log & (fitfunc==ls.powerlaw):
-        rline = []
-        dummyspec = sum(sum(raw_data))/(xdim*ydim)
-        popt_init,pcov_init=curve_fit(ls.powerlaw, ewin, dummyspec[fit_start_ch:fit_end_ch],maxfev=maxfev,method=method,verbose = 0)
-        pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
-        for i in range(xdim):
-            for j in range(ydim):
-                popt_pl,pcov_pl=curve_fit(ls.powerlaw, ewin, lba_raw_normalized[i,j,fit_start_ch:fit_end_ch],maxfev=maxfev,method=method,verbose = 0
-                                          ,p0=popt_init, ftol=ftol, gtol=gtol, xtol=xtol)
-                c,r = popt_pl
-                if threshmask[i,j]:
-                    rline = np.append(rline,r)
-                bg_pl_SI[i,j,fit_start_ch:] = raw_data[i,j,fit_start_ch:] - ls.powerlaw(energy_axis[fit_start_ch:],c,r)
-                pbar1.update(1)
-
-## Exponential non-linear curve fitting using scipy.optimize.curve_fit
-    elif ~log & (fitfunc==ls.exponential):
-        bline = []
-        # dummyspec = sum(sum(raw_data))/(xdim*ydim)
-        # popt_init,pcov_init=curve_fit(exponential, ewin, dummyspec[fit_start_ch:fit_end_ch],bounds=bounds,p0=[0,0],maxfev=maxfev,method=method,verbose = 0)
-        pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
-        for i in range(xdim):
-            for j in range(ydim):
-                popt_exp,pcov_exp=curve_fit(ls.exponential, ewin, lba_raw_normalized[i,j,fit_start_ch:fit_end_ch],maxfev=maxfev,method=method,verbose = 0
-                                          ,p0=[0,0], ftol=ftol, gtol=gtol, xtol=xtol)
-                a,b = popt_exp
-                if threshmask[i,j]:
-                    bline = np.append(bline,b)
-                bg_pl_SI[i,j,fit_start_ch:] = raw_data[i,j,fit_start_ch:] - ls.exponential(energy_axis[fit_start_ch:],a,b)
-                pbar1.update(1)
-
-## Given r values of SI, refit background using a linear combination of power laws, using either 5/95 percentile or 20/80 percentile r values.
-    if 'lc' in kwargs.keys():
-        lc = kwargs['lc']
-    else:
-        lc = False
-
-    if lc & (fitfunc==ls.powerlaw):
-        if 'nstd' in kwargs.keys():
-            nstd = kwargs['nstd']
-        else:
-            nstd = 2
-        bg_lcpl_SI = np.zeros_like(raw_data)
-        rmu,rstd = norm.fit(rline)
-        rmin = rmu - nstd*rstd
-        rmax = rmu + nstd*rstd
-        if nstd == 2:
-            print('5th percentile power law = {}'.format(rmin))
-            print('95th percentile power law = {}'.format(rmax))
-        elif nstd == 1:
-            print('20th percentile power law = {}'.format(rmin))
-            print('80th percentile power law = {}'.format(rmax))
-        else:
-            print('Min power law = {}'.format(rmin))
-            print('Max power law = {}'.format(rmax))
-        B = np.reshape(lba_raw_normalized[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        A = np.zeros((len(ewin),2))
-        A[:,0] = ewin**(-rmin)
-        A[:,1] = ewin**(-rmax)
-        X = qrnorm(A,B.T)
-        E = np.zeros((len(esub),2))
-        E[:,0] = esub**(-rmin)
-        E[:,1] = esub**(-rmax)
-        bgndLCPLline = np.dot(X.T,E.T)
-        bgndLCPL = np.reshape(bgndLCPLline,(xdim,ydim,len(esub)))
-        bg_lcpl_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndLCPL
+    ## Given r values of SI, refit background using a linear combination of power laws, 
+    ## using either 5/95 percentile or 20/80 percentile r values.
+    if lc:
+        bg_pl_SI, bg_lcpl_SI = bgsub_SI_LC(si, energy, edge, rline, fit=fit, nstd=2)
         return bg_pl_SI, bg_lcpl_SI
-
-### Testing
-    elif lc & (fitfunc==ls.exponential):
-        if 'nstd' in kwargs.keys():
-            nstd = kwargs['nstd']
-        else:
-            nstd = 2
-        bg_lcpl_SI = np.zeros_like(raw_data)
-        bmu,bstd = norm.fit(bline)
-        bmin = bmu - nstd*bstd
-        bmax = bmu + nstd*bstd
-        if nstd == 2:
-            print('5th percentile exponential = {}'.format(bmin))
-            print('95th percentile exponential = {}'.format(bmax))
-        elif nstd == 1:
-            print('20th percentile exponential = {}'.format(bmin))
-            print('80th percentile exponential = {}'.format(bmax))
-        else:
-            print('Min exponential = {}'.format(bmin))
-            print('Max exponential = {}'.format(bmax))
-        B = np.reshape(lba_raw_normalized[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        A = np.zeros((len(ewin),2))
-        A[:,0] = np.exp(-bmin*ewin)
-        A[:,1] = np.exp(-bmax*ewin)
-        X = qrnorm(A,B.T)
-        E = np.zeros((len(esub),2))
-        E[:,0] = np.exp(-bmin*esub)
-        E[:,1] = np.exp(-bmax*esub)
-        bgndLCPLline = np.dot(X.T,E.T)
-        bgndLCPL = np.reshape(bgndLCPLline,(xdim,ydim,len(esub)))
-        bg_lcpl_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndLCPL
-        return bg_pl_SI, bg_lcpl_SI
-
     else:
         return bg_pl_SI
     
+def prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch ):
+    lba_raw = np.copy( si )
+    lba_normalized = np.copy( si )
+    for energychannel in np.arange(fit_start_ch,fit_end_ch):
+        lba_raw[:,:,energychannel] = gaussian_filter(si[:,:,energychannel],sigma=gfwhm/2.35)
+    
+    lba_mean = np.mean( lba_raw[:,:,fit_start_ch:fit_end_ch], 2 )
+    data_mean = np.mean(     si[:,:,fit_start_ch:fit_end_ch], 2)
 
-def bgsub_fast(raw_data, energy_axis, fit_window, rval,fit='pl'):
+    for energychannel in np.arange(fit_start_ch,fit_end_ch):
+        lba_normalized[:,:,energychannel] = lba_raw[:,:,energychannel]*data_mean/lba_mean
 
-    fit_start_ch = eVtoCh(fit_window[0], energy_axis)
-    fit_end_ch = eVtoCh(fit_window[1], energy_axis)
-    raw_data = raw_data.astype('float32')
+    return lba_normalized
+    
 
-    xdim, ydim, zdim = np.shape(raw_data)
-    ewin = energy_axis[fit_start_ch:fit_end_ch]
-    esub = energy_axis[fit_start_ch:]
-    bg_SI = np.zeros_like(raw_data)  
+def linear_regression_QR( y, X ):
+    # Solve Linear Regression using QR Decomposition
+    # Y = Xb + error
+    # R*b = Q.T*y minimizes MSE
+    # y: (nx1) dependent variable
+    # x: (nx1) independent variable
+    # b: (2x1) [[b0],[b1]], b0: intercept, b1: slope
+    if y.ndim == 1:
+        Y = np.atleast_2d( y ).T
+    else:
+        Y = y
 
-    if fit == 'lin':
-        B = np.reshape(raw_data[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        A = np.zeros((len(ewin),1))
-        A[:,0] = ewin*(rval)
-        X = qrnorm(A,B.T)
-        E = np.zeros((len(esub),1))
-        E[:,0] = esub*(rval)
+    Q, R = LA.qr(X)
+    b = LA.inv(R) @ (Q.T @ Y)
 
-        bgndPLline = np.dot(X.T,E.T)
-        bgndPL = np.reshape(bgndPLline,(xdim,ydim,len(esub)))
-        bg_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndPL
-
-    if fit == 'pl':
-        B = np.reshape(raw_data[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        A = np.zeros((len(ewin),1))
-        A[:,0] = ewin**(rval)
-        X = qrnorm(A,B.T)
-        E = np.zeros((len(esub),1))
-        E[:,0] = esub**(rval)
-
-        bgndPLline = np.dot(X.T,E.T)
-        bgndPL = np.reshape(bgndPLline,(xdim,ydim,len(esub)))
-        bg_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndPL
-
-    if fit == 'exp':
-        B = np.reshape(raw_data[:,:,fit_start_ch:fit_end_ch],((xdim*ydim),len(ewin)))
-        A = np.zeros((len(ewin),1))
-        A[:,0] = np.exp(ewin*(rval))
-        X = qrnorm(A,B.T)
-        E = np.zeros((len(esub),1))
-        E[:,0] = np.exp(esub*(rval))
-
-        bgndPLline = np.dot(X.T,E.T)
-        bgndPL = np.reshape(bgndPLline,(xdim,ydim,len(esub)))
-        bg_SI[:,:,fit_start_ch:] = raw_data[:,:,fit_start_ch:] - bgndPL
-
-    return bg_SI
-
-
-def eVtoCh(energy, array):
-	return int(np.squeeze(np.argwhere(array == find_nearest(array,energy))))
-
-
-def find_nearest(array, value):
-    """
-    Inputs:
-    array - array...
-    value - value to search for in array
-
-    Outputs:
-    array[idx] - nearest value in array
-    """
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return array[idx]
-
-
-def qrnorm(A,b):
-    """
-    Solve systems of linear equations Ax = b for x
-    """
-    q, r = LA.qr(A)
-    p = np.dot(q.T,b)
-    return np.dot(LA.inv(r),p)
-
+    return b
