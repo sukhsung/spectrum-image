@@ -1549,3 +1549,131 @@ def lcpowerlaw(energy, c1, r1, c2, r2):
 
 def exponential(energy,a,b):
     return a*np.exp(-b*energy)
+
+
+class SIbrowser:
+    
+    def __init__( self, si, energy, im_adf=None, cmap='gray', figsize=(9,4), **kwargs):
+        ######### Initialize browser object ##########
+        self.si = si
+        self.energy = energy
+        self.im_adf = im_adf
+        self.im_inel =np.mean(si,axis=(-1))
+        self.edge = eels_edge( "", e_bsub=None, e_int=(energy[0], energy[-1]))
+
+        self.spectrum1=np.mean(si,axis=(0,1))
+        self.spectrum2=np.mean(si,axis=(0,1))
+        
+        ##############Initialize Display#################
+        self.fig=plt.figure(figsize=figsize)
+
+        self.ax= {'inel':None,'spec':None,'bttn':None}
+        self.ax['inel']=self.fig.add_axes([0.05,0.3,0.425,0.6]) # Image
+        self.ax['spec']=self.fig.add_axes([0.55,0.3,0.425,0.6]) # Spectrum
+        self.ax['bttn']=self.fig.add_axes([0.88,0.012,0.1,0.2]) # Button
+        self.ax['bttn'].axis('off')
+        ##############################################
+        # Initialize plot handles
+        self.h = {'inel':None, 'spec1':None, 'spec2':None}
+
+        ## Inelastic Image
+        self.h['inel']  = self.ax['inel'].matshow(self.im_inel,cmap = cmap)
+        self.ax['inel'].set_axis_off()
+        self.ax['inel'].set_title('Inelastic image')
+        ## Spectra
+        self.h['spec1'], =self.ax['spec'].plot(self.energy,self.spectrum1,color='maroon')
+        self.h['spec2'], =self.ax['spec'].plot(self.energy,self.spectrum2,color='k',alpha=0)
+
+        self.ax['spec'].set_ylim([self.spectrum1.min(),self.spectrum1.max()])
+        self.ax['spec'].set_xlim([self.energy.min(),self.energy.max()])
+        self.ax['spec'].set_yticks([])
+        self.ax['spec'].set_xlabel('Energy (keV)')
+        self.ax['spec'].set_ylabel('Intensity')
+        self.ax['spec'].set_title('EELS spectrum')
+        ##############################################
+        results_dict={}
+        for key in ['spectrum','image','roi','energy_span']:
+            results_dict[key]=[]
+        
+        ################### Selectors ###################
+        self.ui = {'roi1':None, 'roi2':None, 'spec':None, 'logscale':None}
+        self.ui['roi1'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
+                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
+                                        interactive=True,props=dict(facecolor='crimson',edgecolor='crimson',alpha=0.2,fill=True),
+                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True
+        
+        self.ui['roi2'] = RectangleSelector(self.ax['inel'], self.dummy, button=[3],
+                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
+                                        interactive=True,props=dict(facecolor='royalblue',edgecolor='royalblue',alpha=0.2,fill=True),
+                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True)
+            
+        self.ui['span_spec'] = SpanSelector(self.ax['spec'], self.dummy, button=[1],
+                                            useblit=False, minspan=1,direction="horizontal",
+                                            interactive=True,props=dict(facecolor='green',edgecolor='green',alpha=0.2,fill=True),
+                                            grab_range=10, drag_from_anywhere=True)
+        
+
+        self.ui['logscale']=CheckButtons(self.ax['bttn'],["Log Scale"],useblit=True ,)
+        self.ui['logscale'].on_clicked(self.scale_button)
+
+        self.fig.canvas.mpl_connect( 'motion_notify_event', 
+                                    lambda event: self.onclick_figure(event))
+
+    ############### Event Handlers ###################
+    def onclick_figure( self, event ):
+        if event.inaxes in [self.ax['inel']]:
+            if event.button == MouseButton.LEFT:
+                # Left Click on Inelastic Image
+                real_roi1 = np.array(self.ui['roi1'].extents).astype('int')
+                self.spectrum1=np.mean(self.si[int(real_roi1[2]):int(real_roi1[3]),int(real_roi1[0]):int(real_roi1[1]),:],axis=(0,1))
+                self.update_spectrum1()
+
+            elif event.button == MouseButton.RIGHT:
+                # Right Click on Inelastic Image
+                real_roi2 = np.array(self.ui['roi2'].extents).astype('int')
+                self.spectrum2=np.mean(self.si[int(real_roi2[2]):int(real_roi2[3]),int(real_roi2[0]):int(real_roi2[1]),:],axis=(0,1))
+                self.update_spectrum2()
+        elif event.inaxes in [self.ax['spec']]:
+            if event.button == MouseButton.LEFT:
+                self.edge.e_int = self.ui['span_spec'].extents
+                self.update_image()
+
+    ################### Update Functions ###################
+    def update_spectrum1(self):
+        self.h['spec1'].set_ydata(self.spectrum1)
+        self.h['spec1'].set_color('maroon')
+        try:
+            self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
+        except:
+            pass
+        
+    def update_spectrum2(self):
+        self.h['spec2'].set_ydata(self.spectrum2)
+        self.h['spec2'].set_alpha(1)
+        self.h['spec2'].set_color('cadetblue')
+        try:
+            self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
+        except:
+            pass
+
+    def update_image(self):
+        indmin, indmax = np.searchsorted(self.energy, self.edge.e_int)
+        self.im_inel = np.mean(self.si[:,:,indmin:indmax],axis=(-1))
+        self.h['inel'].set_data(self.im_inel)
+        self.h['inel'].autoscale()
+
+        
+    def scale_button(self, event):
+        if self.ax['spec'].get_yscale()=='linear':
+            
+            self.ax['spec'].set_yscale('log')
+            self.ax['spec'].set_ylabel('Log Intensity')
+            self.ax['spec'].set_yticks([])
+        else:
+            
+            self.ax['spec'].set_yscale('linear')
+            self.ax['spec'].set_ylabel('Intensity')
+            self.ax['spec'].set_yticks([])
+
+    def dummy( self, *args ):
+        pass

@@ -34,151 +34,35 @@ class eels_edge:
         return self.__str__()
 
 
-class SIbrowser:
-    
-    def __init__( self, si, energy, im_adf=None, cmap='gray', figsize=(9,4), **kwargs):
-        ######### Initialize browser object ##########
+
+class SI :
+    def __init__( self, si, energy, ADF=[] ):
+
+        si[np.isnan(si)] = 0
         self.si = si
-        self.energy = energy
-        self.im_adf = im_adf
-        self.im_inel =np.mean(si,axis=(-1))
-        self.edge = eels_edge( "", e_bsub=None, e_int=(energy[0], energy[-1]))
-
-        self.spectrum1=np.mean(si,axis=(0,1))
-        self.spectrum2=np.mean(si,axis=(0,1))
+        (self.ny, self.nx, self.ne) = self.si.shape
         
-        ##############Initialize Display#################
-        self.fig=plt.figure(figsize=figsize)
+        # 
 
-        self.ax= {'inel':None,'spec':None,'bttn':None}
-        self.ax['inel']=self.fig.add_axes([0.05,0.3,0.425,0.6]) # Image
-        self.ax['spec']=self.fig.add_axes([0.55,0.3,0.425,0.6]) # Spectrum
-        self.ax['bttn']=self.fig.add_axes([0.88,0.012,0.1,0.2]) # Button
-        self.ax['bttn'].axis('off')
-        ##############################################
-        # Initialize plot handles
-        self.h = {'inel':None, 'spec1':None, 'spec2':None}
-
-        ## Inelastic Image
-        self.h['inel']  = self.ax['inel'].matshow(self.im_inel,cmap = cmap)
-        self.ax['inel'].set_axis_off()
-        self.ax['inel'].set_title('Inelastic image')
-        ## Spectra
-        self.h['spec1'], =self.ax['spec'].plot(self.energy,self.spectrum1,color='maroon')
-        self.h['spec2'], =self.ax['spec'].plot(self.energy,self.spectrum2,color='k',alpha=0)
-
-        self.ax['spec'].set_ylim([self.spectrum1.min(),self.spectrum1.max()])
-        self.ax['spec'].set_xlim([self.energy.min(),self.energy.max()])
-        self.ax['spec'].set_yticks([])
-        self.ax['spec'].set_xlabel('Energy (keV)')
-        self.ax['spec'].set_ylabel('Intensity')
-        self.ax['spec'].set_title('EELS spectrum')
-        ##############################################
-        results_dict={}
-        for key in ['spectrum','image','roi','energy_span']:
-            results_dict[key]=[]
+        self.energy = np.asarray( energy )
         
-        ################### Selectors ###################
-        self.ui = {'roi1':None, 'roi2':None, 'spec':None, 'logscale':None}
-        self.ui['roi1'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
-                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
-                                        interactive=True,props=dict(facecolor='crimson',edgecolor='crimson',alpha=0.2,fill=True),
-                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True
-        
-        self.ui['roi2'] = RectangleSelector(self.ax['inel'], self.dummy, button=[3],
-                                        useblit=False ,minspanx=1, minspany=1,spancoords='pixels',
-                                        interactive=True,props=dict(facecolor='royalblue',edgecolor='royalblue',alpha=0.2,fill=True),
-                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True)
-            
-        self.ui['span_spec'] = SpanSelector(self.ax['spec'], self.dummy, button=[1],
-                                            useblit=False, minspan=1,direction="horizontal",
-                                            interactive=True,props=dict(facecolor='green',edgecolor='green',alpha=0.2,fill=True),
-                                            grab_range=10, drag_from_anywhere=True)
-        
-
-        self.ui['logscale']=CheckButtons(self.ax['bttn'],["Log Scale"],useblit=True ,)
-        self.ui['logscale'].on_clicked(self.scale_button)
-
-        self.fig.canvas.mpl_connect( 'motion_notify_event', 
-                                    lambda event: self.onclick_figure(event))
-
-    ############### Event Handlers ###################
-    def onclick_figure( self, event ):
-        if event.inaxes in [self.ax['inel']]:
-            if event.button == MouseButton.LEFT:
-                # Left Click on Inelastic Image
-                real_roi1 = np.array(self.ui['roi1'].extents).astype('int')
-                self.spectrum1=np.mean(self.si[int(real_roi1[2]):int(real_roi1[3]),int(real_roi1[0]):int(real_roi1[1]),:],axis=(0,1))
-                self.update_spectrum1()
-
-            elif event.button == MouseButton.RIGHT:
-                # Right Click on Inelastic Image
-                real_roi2 = np.array(self.ui['roi2'].extents).astype('int')
-                self.spectrum2=np.mean(self.si[int(real_roi2[2]):int(real_roi2[3]),int(real_roi2[0]):int(real_roi2[1]),:],axis=(0,1))
-                self.update_spectrum2()
-        elif event.inaxes in [self.ax['spec']]:
-            if event.button == MouseButton.LEFT:
-                self.edge.e_int = self.ui['span_spec'].extents
-                self.update_image()
-
-    ################### Update Functions ###################
-    def update_spectrum1(self):
-        self.h['spec1'].set_ydata(self.spectrum1)
-        self.h['spec1'].set_color('maroon')
-        try:
-            self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
-        except:
-            pass
-        
-    def update_spectrum2(self):
-        self.h['spec2'].set_ydata(self.spectrum2)
-        self.h['spec2'].set_alpha(1)
-        self.h['spec2'].set_color('cadetblue')
-        try:
-            self.ax['spec'].set_ylim([min(self.spectrum1.min(),self.spectrum2.min()),max(self.spectrum1.max(),self.spectrum2.max())])
-        except:
-            pass
-
-    def update_image(self):
-        indmin, indmax = np.searchsorted(self.energy, self.edge.e_int)
-        self.im_inel = np.mean(self.si[:,:,indmin:indmax],axis=(-1))
-        self.h['inel'].set_data(self.im_inel)
-        self.h['inel'].autoscale()
-
-        
-    def scale_button(self, event):
-        if self.ax['spec'].get_yscale()=='linear':
-            
-            self.ax['spec'].set_yscale('log')
-            self.ax['spec'].set_ylabel('Log Intensity')
-            self.ax['spec'].set_yticks([])
-        else:
-            
-            self.ax['spec'].set_yscale('linear')
-            self.ax['spec'].set_ylabel('Intensity')
-            self.ax['spec'].set_yticks([])
-
-    def dummy( self, *args ):
-        pass
-
-class fitbrowser:
-
-    def __init__( self, si, energy, cmap='gray', figsize=(9,6), lc=False, gfwhm=10, log=True, 
-                 ftol=0.0005, gtol=0.00005, xtol=None, maxfev = 50000, method='trf', edge=None):
+    def fitbrowser( self, edge=None, cmap='gray', figsize=(9,6), lc=False, gfwhm=10, log=True, 
+                 ftol=0.0005, gtol=0.00005, xtol=None, maxfev = 50000, method='trf'):
         
         ## Initialize browser object
-        self.si = si
-        self.energy = energy
-        self.spectrum = np.mean(si,axis=(0,1))
-        self.im_inel = np.mean(si,axis=(-1))
+        self.spectrum1 = np.mean(self.si,axis=(0,1))
+        self.spectrum2 = np.mean(self.si,axis=(0,1))
 
-        self.bsub = np.zeros_like( self.spectrum )
-        self.fit = np.zeros_like( self.spectrum )
+        self.im_inel = np.mean(self.si,axis=(-1))
+
+        self.bsub1 = self.spectrum1
+        self.bsub1_fit  = np.zeros_like( self.spectrum1 )
+        self.bsub2 = self.spectrum2
+        self.bsub2_fit  = np.zeros_like( self.spectrum2 )
 
         self.fit_check = False
         self.int_check = False
-        self.slider_check  = False
-        self.slider_window = [0,len(energy)]
+        self.slider_window = [0,self.ne]
 
         self.lc = lc
         self.gfwhm = gfwhm
@@ -189,10 +73,10 @@ class fitbrowser:
         self.maxfev = maxfev
         self.method = method
 
-        self.bsub_array = np.copy(si)
+        self.si_bsub = np.copy(self.si)
 
         self.fitfunction = 'pl'
-        self.r = -1
+        self.r1 = -1
         
         results_dict={}
         for key in ['bsub_spectrum','image','bsub_SI','edge']:
@@ -206,6 +90,9 @@ class fitbrowser:
                     'btn_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
         self.ax['inel']=self.fig.add_axes([0.025,0.1,0.45,0.8]) # Image
         self.ax['spec']=self.fig.add_axes([0.525,0.45,0.45,0.45]) # Spectrum
+        self.ax['spec2'] = self.fig.add_axes([0.525,0.45,0.45,0.20]) # Spec 2
+        self.ax['ck_ylock'] = self.fig.add_axes([0.85,0.35,0.13,0.05]) # Y-lock chkbox
+        self.ax['ck_roi2'] = self.fig.add_axes([0.025,0.10,0.15,0.05]) # ROI2 chkbox
         self.ax['e_view']=self.fig.add_axes([0.625,0.30,0.25,0.05]) # Range slider
         self.ax['e_bsub']=self.fig.add_axes([0.625,0.25,0.25,0.05]) # Range slider
         self.ax['e_int'] =self.fig.add_axes([0.625,0.20,0.25,0.05]) # Range slider
@@ -215,37 +102,75 @@ class fitbrowser:
         self.ax['btn_save']=self.fig.add_axes([0.875,0.1,0.1,0.1]) # Save Button 
 
         ## Initialize plot handles
-        self.h = {'inel':None, 'spec':None, 'bsub':None, 'fit':None}
+        self.h = {'inel':None, 'spec':None, 'bsub1':None, 'fit':None, 'bsub2':None}
         ################## ax['inel'] ######################
         self.h['inel'] = self.ax['inel'].imshow( self.im_inel,cmap = cmap)
         self.ax['inel'].set_axis_off()
         self.ax['inel'].set_title('Inelastic image')
 
         ################## ax['spec'] #######################
-        self.h['spec'], =self.ax['spec'].plot(energy, self.spectrum,color='k')
-        self.h['bsub'], =self.ax['spec'].plot(energy, self.bsub,color='k',alpha=0)
-        self.h['fit'],  =self.ax['spec'].plot(energy, self.fit,color='k',alpha=0)
+        self.h['spec1'], =self.ax['spec'].plot(self.energy, self.spectrum1,color='crimson')
+        self.h['bsub1'], =self.ax['spec'].plot(self.energy, self.bsub1,color='k',alpha=0)
+        self.h['fit1'],  =self.ax['spec'].plot(self.energy, self.bsub1_fit,color='palevioletred',alpha=0)
         self.ax['spec'].axhline(0,color='k',linestyle='--',alpha=0.3)
-        self.ax['spec'].set_ylim([self.spectrum.min(),self.spectrum.max()])
+        self.ax['spec'].set_ylim([self.spectrum1.min(),self.spectrum1.max()])
         self.ax['spec'].set_xlim([self.energy.min(),self.energy.max()])
         self.ax['spec'].set_yticks([])
-        self.ax['spec'].set_xlabel('Energy (keV)')
+        self.ax['spec'].set_xlabel('Energy (eV)')
         self.ax['spec'].set_ylabel('Intensity')
         self.ax['spec'].set_title('EELS spectrum')
 
+        ################## ax['spec2'] #######################
+        self.h['spec2'], =self.ax['spec2'].plot(self.energy, self.spectrum2,color='royalblue',alpha=0)
+        self.h['bsub2'], =self.ax['spec2'].plot(self.energy, self.bsub1,color='k',alpha=0)
+        self.h['fit2'],  =self.ax['spec2'].plot(self.energy, self.bsub1_fit,color='palevioletred',alpha=0)
+        self.ax['spec2'].axhline(0,color='k',linestyle='--',alpha=0.3)
+        self.ax['spec2'].set_ylim([self.spectrum1.min(),self.spectrum1.max()])
+        self.ax['spec2'].set_xlim([self.energy.min(),self.energy.max()])
+        self.ax['spec2'].set_yticks([])
+        self.ax['spec2'].set_xlabel('Energy (eV)')
+        self.ax['spec2'].set_ylabel('Intensity')
+        # self.ax['spec2'].set_title('EELS spectrum')
+        self.ax['spec2'].set_visible(False)
+
+
         ## Initialize ui handles
-        self.ui = {'roi':None, 'spec1':None, 'spec2':None, 
+        self.ui = {'roi1':None, 'roi2':None, 'spec1':None, 'spec2':None,
+                   'ck_ylock':None, 'ck_roi2':None,
                    'slid_e_view':None, 'slid_e_bsub':None, 'slid_e_int':None,
                    'rad_fit':None, 'btn_fint':None, 'btn_int':None, 'btn_save':None}
 
+        ### Check box 
+        # ylim locker
+        self.ui['ck_ylock'] = CheckButtons(ax=self.ax['ck_ylock'], labels= ["Lock Y-axis"],
+                                            actives=[False], check_props={'facecolor': 'k'} )
+        self.ui['ck_ylock'].on_clicked( lambda v: self.onclick_ck_ylock() )
+        self.y_locked = False
+
+        self.ui['ck_roi2'] = CheckButtons(ax=self.ax['ck_roi2'], labels= ["Enable ROI 2"],
+                                        actives=[False], check_props={'facecolor': 'k'} )
+        self.ui['ck_roi2'].on_clicked( lambda v: self.onclick_ck_roi2() )
+        self.roi2_enabled = False
+
+
         ################### Selectors ###################
-        self.ui['roi'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
+        self.ui['roi1'] = RectangleSelector(self.ax['inel'], self.dummy, button=[1],
                                         useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
                                         interactive=True,props=dict(facecolor='crimson',edgecolor='crimson',alpha=0.2,fill=True),
                                         handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True
         
+        self.ui['roi2'] = RectangleSelector(self.ax['inel'], self.dummy, button=[3],
+                                        useblit=True ,minspanx=1, minspany=1,spancoords='pixels',
+                                        interactive=True,props=dict(facecolor='royalblue',edgecolor='royalblue',alpha=0.2,fill=True),
+                                        handle_props=dict(markersize=2,markerfacecolor='white'))#,ignore_event_outside=True)   
+        self.ui['roi2'].set_visible( False )
+        self.ui['roi2'].set_active( False )
             
         self.ui['bsub'] = SpanSelector(self.ax['spec'], self.dummy, button=[1],
+                                            useblit=True, minspan=1,direction="horizontal",
+                                            interactive=True,props=dict(facecolor='C0',edgecolor='C0',alpha=0.2,fill=True),
+                                            grab_range=10, drag_from_anywhere=True)
+        self.ui['bsub2'] = SpanSelector(self.ax['spec2'], self.dummy, button=[1],
                                             useblit=True, minspan=1,direction="horizontal",
                                             interactive=True,props=dict(facecolor='C0',edgecolor='C0',alpha=0.2,fill=True),
                                             grab_range=10, drag_from_anywhere=True)
@@ -254,24 +179,30 @@ class fitbrowser:
                                             useblit=True, minspan=1,direction="horizontal",
                                             interactive=True,props=dict(facecolor='orange',edgecolor='orange',alpha=0.2,fill=True),
                                             grab_range=10, drag_from_anywhere=True)
+        self.ui['int2'] = SpanSelector(self.ax['spec2'], self.dummy, button=[3],
+                                            useblit=True, minspan=1,direction="horizontal",
+                                            interactive=True,props=dict(facecolor='orange',edgecolor='orange',alpha=0.2,fill=True),
+                                            grab_range=10, drag_from_anywhere=True)
         
 
+        ## Sliders
         self.ui['slid_e_view'] = RangeSlider(self.ax['e_view'],"Energy Range ",
-                                        energy[0], energy[-1], valinit=[energy[0],energy[-1]],
-                                        valstep=energy[1]-energy[0],dragging=True)
+                                        self.energy[0], self.energy[-1], valinit=[self.energy[0],self.energy[-1]],
+                                        valstep=self.energy[1]-self.energy[0],dragging=True)
         self.ui['slid_e_view'].on_changed( self.slider_view_action )
         
         self.ui['slid_e_bsub'] = RangeSlider(self.ax['e_bsub'],"Background ",
-                                            energy[0], energy[-1], valinit=[energy[0],energy[-1]],
-                                            valstep=energy[1]-energy[0],dragging=True)
+                                            self.energy[0], self.energy[-1], valinit=[self.energy[0],self.energy[-1]],
+                                            valstep=self.energy[1]-self.energy[0],dragging=True)
         self.ui['slid_e_bsub'].on_changed( self.slider_bsub_action )
 
         self.ui['slid_e_int'] = RangeSlider(self.ax['e_int'],"Integration ",
-                                          energy[0],energy[-1],valinit=[energy[0],energy[-1]],
-                                          valstep=energy[1]-energy[0],dragging=True)
+                                          self.energy[0],self.energy[-1],valinit=[self.energy[0],self.energy[-1]],
+                                          valstep=self.energy[1]-self.energy[0],dragging=True)
         self.ui['slid_e_int'].on_changed( self.slider_int_action )
 
 
+        ## Buttons
         self.ax['btn_fit'].set_facecolor('0.85')
         self.ui['rad_fit'] = RadioButtons(self.ax['btn_fit'], ('Power law', 'Exponential', 'Linear'),
                             label_props={'color': ['k','k','k'], 'fontsize': [10, 10, 10]},
@@ -295,114 +226,204 @@ class fitbrowser:
         # selector_collection = (spectrum_span_selector1,spectrum_span_selector2,rect_selector,ibutton,fibutton,Eslider,save_button,fitradio)
        
         if edge is None:
-            self.edge = eels_edge( " ", (energy[0],energy[-1]), (energy[0],energy[-1]) )
+            self.edge = eels_edge( " ", (self.energy[0],self.energy[-1]), (self.energy[0],self.energy[-1]) )
             self.ax['e_bsub'].set_visible(False)
             self.ax['e_int'].set_visible(False)
         else:
             self.edge = edge
             if self.edge.e_bsub is None:
-                self.edge.e_bsub = (energy[0],energy[-1])
+                self.edge.e_bsub = (self.energy[0],self.energy[-1])
                 self.ax['e_bsub'].set_visible(False)
             else:
                 self.fit_check = True
                 self.ui['slid_e_bsub'].set_val( self.edge.e_bsub )
 
             if self.edge.e_int is None:
-                self.edge.e_int = (energy[0],energy[-1])
+                self.edge.e_int = (self.energy[0],self.energy[-1])
                 self.ax['e_int'].set_visible(False)
             else:
                 self.ui['slid_e_int'].set_val( self.edge.e_int )
 
-        
+        self.rescale_yrange()
         # return results_dict,selector_collection
+        
 
     ################### Update Functions ###################
-    def update_spectrum(self):
-        self.h['spec'].set_ydata( self. spectrum)
-        self.h['spec'].set_color('k')
+    def onclick_ck_ylock(self):
+        self.y_locked = self.ui['ck_ylock'].get_status()[0]
+        self.rescale_yrange()
+
+    def onclick_ck_roi2( self ):
+        self.roi2_enabled = self.ui['ck_roi2'].get_status()[0]
+        if self.roi2_enabled:
+            self.h['spec2'].set_alpha(1)
+            self.ui['roi2'].set_visible( True )
+            self.ui['roi2'].set_active( True )
+            self.ax['spec2'].set_visible( True )
+            self.ax['spec'].set_position( [0.525,0.7,0.45,0.2] )
+            if self.fit_check:
+                self.update_fit2()
+        else:
+            self.ax['spec'].set_position( [0.525,0.45,0.45,0.45] )
+            self.ax['spec2'].set_visible( False )
+            self.h['spec2'].set_alpha(0)
+            self.h['bsub2'].set_alpha(0)
+            self.h['fit2'].set_alpha(0)
+            self.ui['roi2'].set_visible( False )
+            self.ui['roi2'].set_active( False )
+
+    def update_spectrum1(self):
+        real_roi = self.ui['roi1'].extents
+        xmin = int( real_roi[0])
+        xmax = int( real_roi[1])
+        ymin = int( real_roi[2])
+        ymax = int( real_roi[3])
+
+        if xmin == xmax:
+            xmax += 1
+        if ymin == ymax:
+            ymax +=1
+
+        self.spectrum1=np.mean( self.si[ymin:ymax,xmin:xmax,:],axis=(0,1))
+
+        self.h['spec1'].set_ydata( self.spectrum1)
+        self.rescale_yrange()
+
+    def update_spectrum2(self):
+        real_roi = self.ui['roi2'].extents
+        xmin = int( real_roi[0])
+        xmax = int( real_roi[1])
+        ymin = int( real_roi[2])
+        ymax = int( real_roi[3])
+
+        if xmin == xmax:
+            xmax += 1
+        if ymin == ymax:
+            ymax +=1
+
+        self.spectrum2=np.mean( self.si[ymin:ymax,xmin:xmax,:],axis=(0,1))
+
+        self.h['spec2'].set_ydata( self.spectrum2)
+        self.h['spec2'].set_alpha(1)
         self.rescale_yrange()
         
-    def update_fit(self):
+    def update_fit1(self):
         ind_min = np.searchsorted( self.energy, self.edge.e_bsub[0])
 
-        self.h['bsub'].set_ydata(self.bsub)
-        self.h['bsub'].set_color('C1')
-        self.h['bsub'].set_alpha(1)
-        self.h['fit'].set_data( self.energy[ind_min:], self.spectrum[ind_min:]-self.bsub[ind_min:])
-        self.h['fit'].set_color('C0')
-        self.h['fit'].set_alpha(1)
+        self.h['bsub1'].set_ydata(self.bsub1)
+        self.h['bsub1'].set_color('orangered')
+        self.h['bsub1'].set_alpha(1)
+
+        self.h['fit1'].set_data( self.energy[ind_min:], self.spectrum1[ind_min:]-self.bsub1[ind_min:])
+        self.h['fit1'].set_color('palevioletred')
+        self.h['fit1'].set_alpha(1)
         self.rescale_yrange()
         
+    def update_fit2(self):
+        ind_min = np.searchsorted( self.energy, self.edge.e_bsub[0])
+
+        self.h['bsub2'].set_ydata(self.bsub2)
+        self.h['bsub2'].set_color('steelblue')
+        self.h['bsub2'].set_alpha(1)
+
+        self.h['fit2'].set_data( self.energy[ind_min:], self.spectrum2[ind_min:]-self.bsub2[ind_min:])
+        self.h['fit2'].set_color('cornflowerblue')
+        self.h['fit2'].set_alpha(1)
+        self.rescale_yrange()
+
     def update_image(self):
-        self.bsub_array = bgsub_SI_fast( self.si, self.energy, self.edge, self.r, fit=self.fitfunction )
+        self.si_bsub = self.bgsub_SI_fast( self.si, self.energy, self.edge, self.r1, fit=self.fitfunction )
         ind_min, ind_max = np.searchsorted(self.energy, self.edge.e_int)
-        self.im_inel = np.mean( self.bsub_array[:,:,ind_min:ind_max],axis=(-1))
+        self.im_inel = np.mean( self.si_bsub[:,:,ind_min:ind_max],axis=(-1))
         self.h['inel'].set_array( self.im_inel)
         self.h['inel'].autoscale()
         
     def update_image_2(self):
-
         if self.lc:
-            _,self.bsub_array = bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
+            _,self.si_bsub = self.bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
                                     ftol=self.ftol,gtol=self.gtol,xtol=self.xtol,maxfev=self.maxfev,method=self.method)
         else:
-            self.bsub_array =   bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
+            self.si_bsub =   self.bgsub_SI( self.si, self.energy, self.edge, gfwhm=self.gfwhm,fit=self.fitfunction,lc=self.lc,log=self.log,
                                     ftol=self.ftol,gtol=self.gtol,xtol=self.xtol,maxfev=self.maxfev,method=self.method)
         indmin, indmax = np.searchsorted(self.energy, self.edge.e_int)
-        self.im_inel = np.mean(self.bsub_array[:,:,indmin:indmax],axis=(-1))
+        self.im_inel = np.mean(self.si_bsub[:,:,indmin:indmax],axis=(-1))
         self.h['inel'].set_array(self.im_inel)
         self.h['inel'].autoscale()
 
     def slider_bsub_action(self, erange):
         self.ui['bsub'].extents = erange
+        self.ui['bsub2'].extents = erange
         self.edge.e_bsub = erange
-        self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
-        self.r = fit_param[1]
-        self.update_fit()
+
+        self.bsub1, fit_param1 = self.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+        self.r1 = fit_param1[1]
+        self.update_fit1()
+
+        if self.roi2_enabled:
+            self.bsub2, fit_param2 = self.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+            self.r2 = fit_param2[1]
+            self.update_fit2()
 
     def slider_int_action(self, erange):
         self.ui['int'].extents = erange
+        self.ui['int2'].extents = erange
         self.edge.e_int = erange
 
     def slider_view_action(self, erange):
-
-        self.slider_check=True
-        slidermin, slidermax = np.searchsorted(self.energy, (erange[0],erange[1]))
-        self.slider_window = [slidermin, slidermax]
         self.ax['spec'].set_xlim([erange[0],erange[1]])
+        self.ax['spec2'].set_xlim([erange[0],erange[1]])
 
+        slidermin, slidermax = np.searchsorted(self.energy, (erange[0],erange[1]))
+        self.slider_window = (slidermin, slidermax)
         self.rescale_yrange()
 
     def rescale_yrange(self):
-        try:
-            if self.slider_check:
-                slidermin,slidermax = self.slider_window
-                if self.fit_check:
-                    self.ax['spec'].set_ylim([min(self.bsub[slidermin:slidermax].min(),-1*self.bsub[slidermin:slidermax].min()),self.spectrum[slidermin:slidermax].max()])
-                else:
-                    self.ax['spec'].set_ylim([self.spectrum[slidermin:slidermax].min(),self.spectrum[slidermin:slidermax].max()])
+        if self.y_locked == False:
+            slidermin,slidermax = self.slider_window
+
+            # axis 1
+            if self.fit_check:
+                minval = min( 1.1*self.bsub1[slidermin:slidermax].min(),
+                            -1.1*self.bsub1[slidermin:slidermax].min(),
+                            0)
+                
+                maxval = 1.1*self.spectrum1[slidermin:slidermax].max()
             else:
-                if self.fit_check:
-                    self.ax['spec'].set_ylim([min(self.bsub.min(),-1*self.bsub.min()),self.spectrum.max()])
-                else:
-                    self.ax['spec'].set_ylim([self.spectrum.min(),self.spectrum.max()])
-        except:
-            pass
+                minval = min( self.spectrum1[slidermin:slidermax].min(),0 )
+                maxval = 1.1*self.spectrum1[slidermin:slidermax].max()
+            self.ax['spec'].set_ylim([minval,maxval])
+
+            # axis 1
+            if self.fit_check:
+                minval = min( 1.1*self.bsub2[slidermin:slidermax].min(),
+                            -1.1*self.bsub2[slidermin:slidermax].min(),
+                            0)
+                
+                maxval = 1.1*self.spectrum2[slidermin:slidermax].max()
+            else:
+                minval = min( self.spectrum2[slidermin:slidermax].min(),0 )
+                maxval = 1.1*self.spectrum2[slidermin:slidermax].max()
+            self.ax['spec2'].set_ylim([minval,maxval])
 
     ############### Event Handlers ###################
     def onclick_figure( self, event ):
         if event.inaxes in [self.ax['inel']]:
             if event.button == MouseButton.LEFT:
                 # Left Click on Inelastic Image
-                real_roi = np.array( self.ui['roi'].extents).astype('int')
-                self.spectrum=np.mean( self.si[int(real_roi[2]):int(real_roi[3]),int(real_roi[0]):int(real_roi[1]),:],axis=(0,1))
-
-                self.update_spectrum()
+                self.update_spectrum1()
                 
                 if self.fit_check:
-                    self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
-                    self.r = fit_param[1]
-                    self.update_fit()
+                    self.bsub1, fit_param = self.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+                    self.r1 = fit_param[1]
+                    self.update_fit1()
+            elif event.button == MouseButton.RIGHT:
+                if self.roi2_enabled:
+                    # Right Click on Inelastic Image
+                    self.update_spectrum2()
+                    if self.fit_check:
+                        self.bsub2, fit_param = self.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+                        self.r2 = fit_param[1]
+                        self.update_fit2()
 
         elif event.inaxes in [self.ax['spec']]:
             if event.button == MouseButton.LEFT:
@@ -414,15 +435,30 @@ class fitbrowser:
                 self.int_check = True
                 self.ax['e_int'].set_visible(True)
                 self.ui['slid_e_int'].set_val( self.ui['int'].extents )
+        
+        elif event.inaxes in [self.ax['spec2']]:    
+            if event.button == MouseButton.LEFT:
+                self.fit_check = True
+                self.ax['e_bsub'].set_visible(True)
+                self.ui['slid_e_bsub'].set_val( self.ui['bsub2'].extents )
+
+            elif event.button == MouseButton.RIGHT:
+                self.int_check = True
+                self.ax['e_int'].set_visible(True)
+                self.ui['slid_e_int'].set_val( self.ui['int2'].extents )
 
 
     def fitcheck(self, label):
         fitdict = {'Power law': 'pl', 'Exponential': 'exp', 'Linear': 'lin'}
         self.fitfunction = fitdict[label]
         if self.fit_check:
-            self.bsub, fit_param = bgsub_SI_linearized( self.spectrum, self.energy, self.edge, fit=self.fitfunction)
-            self.r = fit_param[1]
-            self.update_fit()
+            self.bsub1, fit_param = self.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+            self.r1 = fit_param[1]
+            self.update_fit1()
+            if self.roi2_enabled:
+                self.bsub2, fit_param = self.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+                self.r2 = fit_param[1]
+                self.update_fit2()
         
     def fint_button(self, event):
         if (self.int_check & self.fit_check):
@@ -440,937 +476,301 @@ class fitbrowser:
     #     results_dict['image'] = inel_im
     #     results_dict['bsub_SI'] = bsub_array
     #     results_dict['edge'] = [fit_window[0],fit_window[1],int_window[0],int_window[1]]
+    
+    ### Background Subtractions
+    def bgsub_SI( self, si, energy, edge, log=False, fit='pl', gfwhm=None, lc=False,
+                maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None, **kwargs):
+        """
+        Full background subtraction function-
+        Optional LBA, log fitting, LCPL, and exponential fitting.
+        For more information on non-linear fitting function, see information at https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html
+
+        Inputs:
+        raw_data - SI
+        energy_axis - corresponding energy axis
+        edge - edge parameters defined by KEM convention
+
+        **kawrgs:
+        fit - choose the type of background fit, default == 'pl' == Power law. Can also use 'exp'== Exponential, 'lin' == Linear.
+        gfwhm - If using LBA, gfwhm corresponds to width of gaussian filter, default = None, meaning no LBA.
+        log - Boolean, if true, log transform data and fit using QR factorization, default == False.
+        lc - Boolean, if true, include LCPL or LCEX background subtracted SI, default == False.
+        nstd - standard deviation spread of r values from power law fitting. 1= 20/80 percentile, 2= 5/95 percentile. Default == 2.
+        ftol - default to 0.0005, Relative error desired in the sum of squares.
+        gtol - default to 0.00005, Orthogonality desired between the function vector and the columns of the Jacobian.
+        xtol - default to None, Relative error desired in the approximate solution.
+        maxfev - default to 50000, Only change if you are consistenly catching runtime errors and loosening gtol/ftols are not making a good enough fit.
+        method - default is 'trf', see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html#scipy.optimize.least_squares for description of methods
+        Note: may need stricter tolerances on ftol/gtol for noisier data. Anecdotally, a stricter gtol (as low as 1e-8) has a larger effect on the quality of the bgsub.
+        mask - Boolean mask defines non-vacuum region in SI, used to improve LCPL
+        threshold - mininum average counts in fit window to be included in LCPL calculation.
+
+        Outputs:
+        if lcpl == False:
+            bg_pl_SI - background subtracted SI
+        if lcpl == True:
+            bg_pl_SI, bg_lcpl_SI - background subtracted SI, LCPL background subtracted SI
+        """
+
+        fit_start_ch, fit_end_ch = np.searchsorted( energy, edge.e_bsub)
+        si = si.astype('float32')
+        if len(np.shape(si)) == 2:
+            tempx,tempz = np.shape(si)
+            si = np.reshape(si,(tempx,1,tempz))
+        if len(np.shape(si)) == 1:
+            tempz = len(si)
+            si = np.reshape(si,(1,1,tempz))
+        xdim, ydim, zdim = np.shape(si)
+
+        ## Special case: if there is vacuum in the SI and it is causing trouble with your LCPL fitting:
+        if 'mask' in kwargs.keys():
+            mask = kwargs['mask']
+        elif 'threshold' in kwargs.keys():
+            thresh = kwargs['threshold']
+            mean_back = np.mean(si[:,:,fit_start_ch:fit_end_ch],axis=2)
+            mask = mean_back > thresh
+        else:
+            mask = np.ones((xdim,ydim), dtype='bool')
+
+        ## Apply Local Background Averaging
+        if gfwhm is not None:
+            fit_data = self.prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch )
+        else:
+            fit_data = si
+        
+        ## If log fitting or linear fitting, find fit using qr factorization       
+        if log | (fit=='lin'):
+            bg_pl_SI, fit_params = self.bgsub_SI_linearized( fit_data, self.energy, self.edge, fit=fit )
+
+            maskline = np.reshape( mask,(xdim*ydim))
+            rline_long = -1*np.reshape( fit_params[1,:,:], (xdim*ydim) )
+            rline = rline_long[maskline]
+
+        ## Power law non-linear curve fitting using scipy.optimize.curve_fit
+        elif (fit=='pl') | (fit=='exp') : 
+            bg_pl_SI, fit_params = self.bgsub_SI_nllsq( fit_data, self.energy, self.edge, fit=fit, 
+                                            maxfev=maxfev, method=method,
+                                            ftol=ftol, gtol=gtol, xtol=xtol )
+
+        ## Given r values of SI, refit background using a linear combination of power laws, 
+        ## using either 5/95 percentile or 20/80 percentile r values.
+        if lc:
+            bg_lcpl_SI = self.bgsub_SI_LC(si, self.energy, self.edge, rline, fit=fit, nstd=2)
+            return bg_pl_SI, bg_lcpl_SI
+        else:
+            return bg_pl_SI
+        
+    def prepare_lba( self, si, gfwhm, fit_start_ch, fit_end_ch ):
+        lba_raw = np.copy( si )
+        lba_normalized = np.copy( si )
+        for energychannel in np.arange(fit_start_ch,fit_end_ch):
+            lba_raw[:,:,energychannel] = gaussian_filter(si[:,:,energychannel],sigma=gfwhm/2.35)
+        
+        lba_mean = np.mean( lba_raw[:,:,fit_start_ch:fit_end_ch], 2 )
+        data_mean = np.mean(     si[:,:,fit_start_ch:fit_end_ch], 2)
+
+        for energychannel in np.arange(fit_start_ch,fit_end_ch):
+            lba_normalized[:,:,energychannel] = lba_raw[:,:,energychannel]*data_mean/lba_mean
+
+        return lba_normalized
+        
+
+    def linear_regression_QR( self, y, X ):
+        # Solve Linear Regression using QR Decomposition
+        # Y = Xb + error
+        # R*b = Q.T*y minimizes MSE
+        # y: (nx1) dependent variable
+        # x: (nx1) independent variable
+        # b: (2x1) [[b0],[b1]], b0: intercept, b1: slope
+        if y.ndim == 1:
+            Y = np.atleast_2d( y ).T
+        else:
+            Y = y
+
+        Q, R = LA.qr(X)
+        b = LA.inv(R) @ (Q.T @ Y)
+
+        return b
 
 
  
 
 
-class SI :
-    def __init__( self, im_si, ADF=[], es=[] ):
 
-        im_si[np.isnan(im_si)] = 0
-        self.si = im_si
-        (self.ny, self.nx, self.ne) = self.si.shape
-        self.mean_spectrum = np.mean( self.si, axis=(0,1))
-        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
-        
-        ADF = np.asarray( ADF )
-        if not ADF.any():
-            ADF = np.mean( self.si, axis=2 )
-
-        (ny, nx) = ADF.shape
-        if (ny!=self.ny) or (nx!=self.nx):
-            print( "ADF size doesn't match SI")
-            ADF = np.mean( self.si, axis=2 )
-        self.ADF = ADF
-
-        es  = np.asarray( es )
-        if not es.any():
-            es = np.arange(0, self.ne) +1
-        self.es = es
-
-        self.bg_type = None
-        self.e_bsub = (self.es[0], self.es[int(self.ne/8)])
-        self.e_int  = (self.es[0], self.es[int(self.ne/8)])
-
-    def set_roi( self, roi ):
-        xi = int( roi[0] )
-        xf = int( roi[1] )
-        yi = int( roi[2] )
-        yf = int( roi[3] )
-        if xf == xi:
-            xf = xi+1
-        if yf == yi:
-            yf = yi+1
-        self.roi = (xi, xf, yi, yf)
-        self.roi_spectrum = np.mean( self.si[ yi:yf, xi:xf,:], axis=(0,1))
-    
-    def bin_energy_x2( self ):
-        if ( self.ne%2 ==1 ):
-            self.ne -= 1
-            self.es = self.es[0:-1]
-            self.si = self.si[:,:,0:-1]
-
-        self.es = ( self.es[0::2]+self.es[1::2] )/2
-        self.si = ( self.si[:,:,0::2] + self.si[:,:,1::2 ] )/2
-
-        (self.ny, self.nx, self.ne) = self.si.shape
-        self.mean_spectrum = np.mean( self.si, axis=(0,1))
-        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
-        self.e_bsub = (self.es[0], self.es[int(self.ne/8)])
-        self.e_int  = (self.es[0], self.es[int(self.ne/8)])
-
-    def bin_x_x2( self ):
-        if ( self.nx%2 ==1 ):
-            self.nx -= 1
-            self.si = self.si[:,0:-1,:]
-            self.ADF = self.ADF[:,0:-1]
-
-        self.si = ( self.si[:,0::2,:] + self.si[:,1::2,: ] )/2
-        self.ADF = ( self.ADF[:,0::2] + self.ADF[:,1::2 ] )/2
-        (self.ny, self.nx, self.ne) = self.si.shape
-        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
-
-    def bin_y_x2( self ):
-        if ( self.ny%2 ==1 ):
-            self.ny -= 1
-            self.si = self.si[0:-1,:,:]
-            self.ADF = self.ADF[0:-1,:]
-
-        self.si = ( self.si[0::2,:,:] + self.si[1::2,:,: ] )/2
-        self.ADF = ( self.ADF[0::2,:] + self.ADF[1::2,: ] )/2
-        (self.ny, self.nx, self.ne) = self.si.shape
-        self.set_roi( [self.nx/4, 3*self.nx/4, self.ny/4, 3*self.ny/4] )
-
-    def bin_xy_x2( self ):
-        self.bin_x_x2()
-        self.bin_y_x2()
-
-
-    def SI_viewer( self, bg_type=None):
-        self.bg_type = bg_type
-        SI_max = np.max(self.si)
-
-        fig = plt.figure(figsize=(6,5))
-        self.ax_ADF  =      fig.add_axes([0.1, 0.65, 0.9, 0.3])
-        self.ax_spec =      fig.add_axes([0.1,  0.2, 0.8, 0.4])
-        self.ax_slider_e =  fig.add_axes([0.2, 0.05, 0.6, 0.03])
-        self.ax_slider_bg = fig.add_axes([0.2, 0.01, 0.6, 0.03])
-        self.ax_ylock     = fig.add_axes([0.75, 0.1, 0.2, 0.03])
-
-        self.ax_ADF.matshow( self.ADF )
-        if bg_type is not None:
-            self.rect_bg = patches.Rectangle( (self.e_bsub[0], -SI_max), 
-                                               self.e_bsub[1]-self.e_bsub[0], 2*SI_max,
-                                               linewidth=1, edgecolor='r', facecolor='red', alpha=0.5)
-            self.ax_spec.add_patch( self.rect_bg )
-        self.ax_spec.axhline( y=0, color='k')
-        self.p_spec,   = self.ax_spec.plot( self.es, self.roi_spectrum )
-        self.p_bg,     = self.ax_spec.plot( self.es, np.zeros_like( self.es ) )
-        self.p_bgsub,  = self.ax_spec.plot( self.es, np.zeros_like( self.es ) )
-        
-        self.ax_spec.set_ylim( [-0.1*np.max(self.roi_spectrum), 1.2*np.max(self.roi_spectrum)])
-        self.ax_spec.set_xlim( [self.es[0], self.es[-1]])
-
-        props = dict(edgecolor='red', facecolor='none', alpha=1)
-        self.rect_roi = RectangleSelector(self.ax_ADF, self.dummy, 
-                                        interactive=True,
-                                        drag_from_anywhere=True,
-                                        props=props)
-        self.rect_roi.extents= self.roi
-
-        # Create Checkbox for ylim locker
-        self.chkbox_ylock = CheckButtons(
-            ax=self.ax_ylock,
-            labels= ["Lock Y-axis"],
-            actives=[False],
-            check_props={'facecolor': 'k'},
-        )
-        self.ylock = False
-        self.chkbox_ylock.on_clicked( lambda value: self.onclick_ylock() )
-
-        # Create the RangeSlider
-        if bg_type is not None:
-            self.slider_bg = RangeSlider(self.ax_slider_bg, "Background", 
-                                         self.es[0], self.es[-1])
-            self.slider_bg.set_min( self.e_bsub[0] )
-            self.slider_bg.set_max( self.e_bsub[1] )
-        else:
-            self.slider_bg = None
-            self.ax_slider_bg.set_axis_off()
-
-
-        self.slider_e = RangeSlider(self.ax_slider_e, "Energy Range", self.es[0], self.es[-1])
-        self.slider_e.set_min( self.es[0] )
-        self.slider_e.set_max( self.es[-1] )
-
-
-        cid = fig.canvas.mpl_connect('motion_notify_event', 
-                                    lambda event: self.onchange_roi(event) )
-        if bg_type is not None:
-            self.slider_bg.on_changed( lambda value: self.onchange_slider_bg() )
-        
-        self.slider_e.on_changed( lambda value: self.onchange_slider_e() )
-
-
-    
-    def SI_integrator( self ):
-        SI_max = np.max(self.si)
-
-        fig = plt.figure(figsize=(6,5))
-        self.ax_ADF  =      fig.add_axes([0.2, 0.65, 0.3, 0.3])
-        self.ax_int  =      fig.add_axes([0.6, 0.65, 0.3, 0.3])
-        self.ax_spec =      fig.add_axes([0.1,  0.2, 0.9, 0.4])
-        self.ax_slider_e   = fig.add_axes([0.2, 0.05, 0.6, 0.03])
-        self.ax_slider_int = fig.add_axes([0.2, 0.01, 0.6, 0.03])
-        self.ax_ylock     = fig.add_axes([0.75, 0.1, 0.2, 0.03])
-
-        self.ax_ADF.matshow( self.ADF )
-        im_int,dummy = self.integrate_SI()
-        self.h_int = self.ax_int.matshow( im_int, vmin=0, vmax=1 )
-        self.rect_int = patches.Rectangle( (self.e_int[0], -SI_max), 
-                                            self.e_int[1]-self.e_int[0], 2*SI_max,
-                                            linewidth=1, edgecolor='y', facecolor='yellow', alpha=0.5)
-        self.ax_spec.add_patch( self.rect_int )
-        self.ax_spec.axhline( y=0, color='k')
-        self.p_spec,   = self.ax_spec.plot( self.es, self.roi_spectrum )
-        self.p_bg,     = self.ax_spec.plot( self.es, np.zeros_like( self.es ) )
-        self.p_bgsub,  = self.ax_spec.plot( self.es, np.zeros_like( self.es ) )
-        
-        min_y = np.min([-0.1*np.max(self.roi_spectrum), 1.2*np.min(self.roi_spectrum)])
-        self.ax_spec.set_ylim( [min_y, 1.2*np.max(self.roi_spectrum)])
-        self.ax_spec.set_xlim( [self.es[0], self.es[-1]])
-
-        props = dict(edgecolor='red', facecolor='none', alpha=1)
-        self.rect_roi = RectangleSelector(self.ax_ADF, self.dummy, 
-                                        interactive=True,
-                                        drag_from_anywhere=True,
-                                        props=props)
-        self.rect_roi.extents= self.roi
-
-
-        # Create Checkbox for ylim locker
-        self.chkbox_ylock = CheckButtons(
-            ax=self.ax_ylock,
-            labels= ["Lock Y-axis"],
-            actives=[False],
-            check_props={'facecolor': 'k'},
-        )
-        self.ylock = False
-        self.chkbox_ylock.on_clicked( lambda value: self.onclick_ylock() )
-
-        # Create the RangeSlider
-        self.slider_int = RangeSlider(self.ax_slider_int, "Integration", 
-                                        self.es[0], self.es[-1])
-        self.slider_int.set_min( self.e_int[0] )
-        self.slider_int.set_max( self.e_int[1] )
-
-
-        self.slider_e = RangeSlider(self.ax_slider_e, "Energy Range", self.es[0], self.es[-1])
-        self.slider_e.set_min( self.es[0] )
-        self.slider_e.set_max( self.es[-1] )
-
-
-        cid = fig.canvas.mpl_connect('motion_notify_event', 
-                                    lambda event: self.onchange_roi(event) )
-        
-        self.slider_int.on_changed( lambda value: self.onchange_slider_int() )
-        self.slider_e.on_changed( lambda value: self.onchange_slider_e() )
-        
-        self.update_spectrum( )
-        self.update_xylim()
-
-    def onclick_ylock( self ):
-        self.ylock = self.chkbox_ylock.get_status()[0]
-        if self.ylock==False:
-            self.update_xylim()
-
-    def onchange_roi( self, event):
-        if not (event.button == None):
-            self.set_roi( self.rect_roi.extents )
-            self.update_spectrum( )
-            self.update_xylim()
-            if self.bg_type is not None:
-                self.update_bg()
-
-    def update_xylim( self ):
-        self.ax_spec.set_xlim( self.slider_e.val )
-        ei_ch = self.eVtoCh( self.slider_e.val[0], self.es)
-        ef_ch = self.eVtoCh( self.slider_e.val[1], self.es)
-        if not self.ylock:
-            max_spec = np.max(self.roi_spectrum[ei_ch:ef_ch] )
-            min_y = np.min([-0.1*max_spec, 1.2*np.min(self.roi_spectrum[ei_ch:ef_ch])])
-            self.ax_spec.set_ylim( [min_y, 1.2*max_spec])
-        
-    def update_spectrum( self ):
-            self.p_spec.set_ydata( self.roi_spectrum)
-
-    def onchange_slider_e( self ):
-        self.update_xylim()
-
-    def onchange_slider_bg( self ):
-        self.e_bsub = self.slider_bg.val
-        self.rect_bg.set_x( self.e_bsub[0] )
-        self.rect_bg.set_width( self.e_bsub[1]-self.e_bsub[0] )
-        self.update_bg( )
-
-    def onchange_slider_int( self ):
-        self.e_int = self.slider_int.val
-        self.rect_int.set_x( self.e_int[0] )
-        self.rect_int.set_width( self.e_int[1]-self.e_int[0] )
-        im_int,dummy = self.integrate_SI()
-        self.h_int.set_data( self.normalize( im_int ) )
-
-    def update_bg( self ):
-        fit_i_ch = self.eVtoCh( self.e_bsub[0], self.es)
-        fit_f_ch = self.eVtoCh( self.e_bsub[1], self.es)
-
-        e_fit = self.es[fit_i_ch:fit_f_ch]
-        y_fit = self.roi_spectrum[fit_i_ch:fit_f_ch] 
-
-        ftol = 0.0005
-        gtol = 0.00005        
-                    
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-        try:
-            p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                    method='trf', jac=d_func, ftol=ftol, gtol=gtol)
-            bg_fit = bg_func( self.es, *p_fit)
-        except:
-            bg_fit = 0*self.roi_spectrum
-        
-        bsub = self.roi_spectrum-bg_fit
-        bsub[0:fit_i_ch] = 0
-        self.p_bg.set_ydata( bg_fit )
-        self.p_bgsub.set_ydata( bsub )
-
-    def prepare_bgfit( self, y_fit, e_fit ):
-        # for Powerlaw and LCPL
-        r_g = -np.log( y_fit[0]/y_fit[-1] )/np.log( e_fit[0]/e_fit[-1] )
-
-
-        if r_g < 0:
-            r_g = 0
-        elif r_g >5:
-            r_g = 5
-        A_g = y_fit[0]*(e_fit[0]**r_g)
-        # r_g = 3
-        # print(r_g)
-
-        if self.bg_type == "LCPL":
-            params = 0.5*A_g, r_g, 0.5*A_g, r_g
-            bounds = ( [     0,  0,      0,  0], 
-                       [np.inf, 10, np.inf, 10] )
-            bg_func = ls.LCPL
-            d_func = ls.d_LCPL
-        elif self.bg_type == "powerlaw":
-            params = A_g, r_g
-            bounds = ( [     0,  0], 
-                       [np.inf, 10] )
-            bg_func = ls.powerlaw
-            d_func = ls.d_powerlaw
-        # d_func = '2-point'
-        return bg_func, d_func, params, bounds
-
-    def integrate_SI( self, e_int=None ):
-        if e_int is not None:
-            self.e_int = e_int
-        int_i_ch = self.eVtoCh(self.e_int[0], self.es)
-        int_f_ch = self.eVtoCh(self.e_int[1], self.es)
-
-        return np.sum( self.si[:,:, int_i_ch:int_f_ch], axis=(2) ), self.e_int
-
-    def normalize( self, x ):
-        if np.min(x) == np.max(x):
-            return x
-        else:
-            return (x-np.min(x))/(np.max(x)-np.min(x))
-
-    def bgsub_SI( self, e_bsub=None, bg_type='powerlaw', LCPL_percentile=(5,95), lba=False, plot_bg_coef= False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):
-        if bg_type=='powerlaw':
-            return self.bgsub_powerlaw_SI( e_bsub=e_bsub, lba=lba, plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
-        elif bg_type=='LCPL_Fixed':
-            return self.bgsub_LCPL_Fixed_SI( e_bsub=e_bsub, lba=lba, LCPL_percentile=(5,95), plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
-        elif bg_type=='LCPL_Free':
-            return self.bgsub_LCPL_Free_SI( e_bsub=e_bsub, lba=lba, plot_bg_coef=plot_bg_coef, lba_gfwhm=lba_gfwhm, ftol=ftol, gtol=gtol)
-
-    def bgsub_powerlaw_SI( self, e_bsub=None, lba=False, plot_bg_coef= False, lba_gfwhm=5, ftol=0.0005, gtol=0.0005):
-        if e_bsub is not None:
-            self.e_bsub = e_bsub
-
-        self.bg_type = 'powerlaw'
-        bg_pl_SI = np.zeros_like(self.si)
-        fit_i_ch = self.eVtoCh(self.e_bsub[0], self.es)
-        fit_f_ch = self.eVtoCh(self.e_bsub[1], self.es)
-        e_fit = self.es[fit_i_ch:fit_f_ch]
-
-        #### Setup for LBA if necessary
-        if lba :
-            si_fit = self.prepare_lba( lba_gfwhm=lba_gfwhm )
-        else :
-            si_fit = self.si.copy()[:,:,fit_i_ch:fit_f_ch]
-    
-        ## Fit Mean Spectrum to get a good guess Parameter
-        mean_spec = np.mean( si_fit, axis=(0,1))
-        y_fit = mean_spec
-        r1s = np.zeros( (self.ny,self.nx) )
-        A1s = np.zeros( (self.ny,self.nx) )
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-
-        ## perform PL fit and background subtraction on each pixel.
-        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Background subtracting")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                y_fit = si_fit[i,j]
-                try:
-                    p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                                method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
-                    bg_fit = bg_func( self.es, *p_fit)
-
-                    A1s[i,j] = p_fit[0]
-                    r1s[i,j] = p_fit[1]
-                except:
-                    bg_fit = 0
-
-                bsub = self.si[i,j]-bg_fit
-                bsub[0:fit_i_ch] = 0
-                bg_pl_SI[i,j,:] = bsub
-                pbar.update(1)
-        pbar.close()
-                
-        if plot_bg_coef:
-            fig,ax = plt.subplots(1,2)
-            fig.suptitle( 'A*E^(-r)' )
-            ax[0].matshow( A1s )
-            ax[0].set_title( 'A' )
-            ax[1].matshow( r1s )
-            ax[1].set_title( 'r' )
-
-        return bg_pl_SI, self.e_bsub
-    
-
-    def bgsub_LCPL_Free_SI( self, e_bsub=None, lba=False, plot_bg_coef=False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):#,xtol=None):
-        if e_bsub is not None:
-            self.e_bsub = e_bsub
-
-
-        #### Do standard Powerlaw fitting to generate guesses
-        self.bg_type = 'powerlaw'
-        bg_pl_SI = np.zeros_like(self.si)
-        fit_i_ch = self.eVtoCh(self.e_bsub[0], self.es)
-        fit_f_ch = self.eVtoCh(self.e_bsub[1], self.es)
-        e_fit = self.es[fit_i_ch:fit_f_ch]
-
-        #### Setup for LBA if requested
-        if lba :
-            si_fit = self.prepare_lba( lba_gfwhm=lba_gfwhm )
-        else :
-            si_fit = self.si.copy()[:,:,fit_i_ch:fit_f_ch]
-    
-        ## Fit Mean Spectrum to get a good guess Parameter
-        mean_spec = np.mean( si_fit, axis=(0,1))
-        y_fit = mean_spec        
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-        
-        ## perform PL fit on each pixel.
-        rs = np.zeros( (self.ny, self.nx) )
-        As = np.zeros( (self.ny, self.nx) )
-        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Fitting Normal Powerlaw")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                y_fit = si_fit[i,j]
-                
-                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
-            
-                As[i,j] = p_fit[0]
-                rs[i,j] = p_fit[1]
-                pbar.update(1)
-        pbar.close()
-
-        #### LCPL starts here
-        self.bg_type = 'LCPL'
-        y_fit = mean_spec       
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-        ## Get (5, 95)% percentile of exponents
-        r1s = np.zeros( (self.ny, self.nx) )
-        r2s = np.zeros( (self.ny, self.nx) )
-        A1s = np.zeros( (self.ny, self.nx) )
-        A2s = np.zeros( (self.ny, self.nx) )
-
-        ## Get (5, 95)% percentile of exponents
-        r_0595 = np.percentile( rs, (0,95) )
-
-        p0 = (p0[0], r_0595[0], p0[2], r_0595[1])
-
-        bounds = ([     0, 0,      0, 0], 
-                  [np.inf, 10, np.inf, 10])
-
-
-        ## Fit LCPL
-        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "LCPL Background subtracting")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                y_fit = si_fit[i,j]
-                
-                
-                # try:
-                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
-            
-                bg_fit = bg_func(self.es, *p_fit)
-                # except:
-                #     bg_fit = 0
-
-                bsub = self.si[i,j]-bg_fit
-                bsub[0:fit_i_ch] = 0
-                bg_pl_SI[i,j,:] = bsub
-
-                A1s[i,j] = p_fit[0]
-                r1s[i,j] = p_fit[1]
-                A2s[i,j] = p_fit[2]
-                r2s[i,j] = p_fit[3]
-                pbar.update(1)
-        pbar.close()
-
-        if plot_bg_coef:
-            fig,ax=plt.subplots(3,2)
-            fig.suptitle( 'LCPL: A1*E^(-r1)+A2*E^(-r2)' )
-            ax[0,1].matshow(r1s)
-            ax[0,1].set_title('r1')
-            ax[1,1].matshow(r2s)
-            ax[1,1].set_title('r2')
-            ax[0,0].matshow(A1s)
-            ax[0,0].set_title('A1')
-            ax[1,0].matshow(A2s)
-            ax[1,0].set_title('A2')
-
-            ax[2,0].matshow(As)
-            ax[2,0].set_title('Powerlaw Guess (A)')
-            ax[2,1].matshow(rs)
-            ax[2,0].set_title('Powerlaw Guess (r)')
-                
-        return bg_pl_SI, self.e_bsub
-    
-    def bgsub_LCPL_Fixed_SI( self, e_bsub=None, lba=False, LCPL_percentile=(5,95), plot_bg_coef=False, lba_gfwhm=5, ftol=0.0005, gtol=0.00005):#,xtol=None):
-        if e_bsub is not None:
-            self.e_bsub = e_bsub
-
-
-        #### Do standard Powerlaw fitting to generate guesses
-        self.bg_type = 'powerlaw'
-        bg_pl_SI = np.zeros_like(self.si)
-        fit_i_ch = self.eVtoCh(self.e_bsub[0], self.es)
-        fit_f_ch = self.eVtoCh(self.e_bsub[1], self.es)
-        e_fit = self.es[fit_i_ch:fit_f_ch]
-
-        #### Setup for LBA if requested
-        if lba :
-            si_fit = self.prepare_lba( lba_gfwhm=lba_gfwhm )
-        else :
-            si_fit = self.si.copy()[:,:,fit_i_ch:fit_f_ch]
-    
-        ## Fit Mean Spectrum to get a good guess Parameter
-        mean_spec = np.mean( si_fit, axis=(0,1))
-        y_fit = mean_spec        
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-        
-        ## perform PL fit on each pixel.
-        rs = np.zeros( (self.ny, self.nx) )
-        As = np.zeros( (self.ny, self.nx) )
-        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "Fitting Normal Powerlaw")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                y_fit = si_fit[i,j]
-                
-                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
-            
-                As[i,j] = p_fit[0]
-                rs[i,j] = p_fit[1]
-                pbar.update(1)
-        pbar.close()
-
-        #### LCPL starts here
-        self.bg_type = 'LCPL'
-        y_fit = mean_spec       
-        bg_func, d_func, p0, bounds = self.prepare_bgfit( y_fit, e_fit )
-        ## Get (5, 95)% percentile of exponents
-        r_0595 = np.percentile( rs, LCPL_percentile )
-        r1s = np.zeros( (self.ny, self.nx) )
-        r2s = np.zeros( (self.ny, self.nx) )
-        A1s = np.zeros( (self.ny, self.nx) )
-        A2s = np.zeros( (self.ny, self.nx) )
-
-        p0 = (p0[0], r_0595[0], p0[2], r_0595[1])
-
-        bounds = ([     0, r_0595[0]*0.97,      0, r_0595[1]*0.97], 
-                  [np.inf, r_0595[0]*1.03, np.inf, r_0595[1]*1.03])
-
-
-        ## Fit LCPL
-        pbar = tqdm_notebook(total = (self.nx)*(self.ny),desc = "LCPL Background subtracting")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                y_fit = si_fit[i,j]
-                
-                # try:
-                p_fit, cov_fit = curve_fit( bg_func, e_fit, y_fit, p0=p0, bounds=bounds,
-                                           method='trf',jac=d_func, ftol=ftol, gtol=gtol, maxfev=5000)
-            
-                bg_fit = bg_func(self.es, *p_fit)
-                # except:
-                #     bg_fit = 0
-
-                bsub = self.si[i,j]-bg_fit
-                bsub[0:fit_i_ch] = 0
-                bg_pl_SI[i,j,:] = bsub
-
-                A1s[i,j] = p_fit[0]
-                r1s[i,j] = p_fit[1]
-                A2s[i,j] = p_fit[2]
-                r2s[i,j] = p_fit[3]
-                pbar.update(1)
-        pbar.close()
-
-        if plot_bg_coef:
-            fig,ax=plt.subplots(3,2)
-            fig.suptitle( 'LCPL: A1*E^(-r1)+A2*E^(-r2)' )
-            ax[0,1].matshow(r1s)
-            ax[0,1].set_title('r1')
-            ax[1,1].matshow(r2s)
-            ax[1,1].set_title('r2')
-            ax[0,0].matshow(A1s)
-            ax[0,0].set_title('A1')
-            ax[1,0].matshow(A2s)
-            ax[1,0].set_title('A2')
-
-            ax[2,0].matshow(As)
-            ax[2,0].set_title('Powerlaw Guess (A)')
-            ax[2,1].matshow(rs)
-            ax[2,0].set_title('Powerlaw Guess (r)')
-                
-        return bg_pl_SI, self.e_bsub
-
-    def prepare_lba( self, e_bsub=None, lba_gfwhm=5 ):
-        if e_bsub is not None:
-            self.e_bsub = e_bsub
-        self.gwfm = lba_gfwhm
-
-        fit_i_ch = self.eVtoCh( self.e_bsub[0], self.es)
-        fit_f_ch = self.eVtoCh( self.e_bsub[1], self.es)
-
-
-        lba_raw = np.copy( self.si )
-        for e_ch in np.arange( fit_i_ch, fit_f_ch ):
-            lba_raw[:,:,e_ch] = gaussian_filter( self.si[:,:,e_ch], sigma=lba_gfwhm/2.35)
-
-        lba_normalized = np.copy(lba_raw)
-        pbar = tqdm_notebook(total = (self.nx * self.ny ),desc = "LBA Normalizing")
-        for i in range(self.ny):
-            for j in range(self.nx):
-                normalize,pcov_pl=curve_fit( self.lba_normalization,
-                                            lba_raw[i,j,fit_i_ch:fit_f_ch],
-                                            self.si[i,j,fit_i_ch:fit_f_ch])
-                lba_normalized[i,j,fit_i_ch:fit_f_ch] = lba_raw[i,j,fit_i_ch:fit_f_ch]*normalize
-                pbar.update(1)
-        pbar.close()
-
-        return lba_normalized[:,:,fit_i_ch:fit_f_ch]
-    
-    def lba_normalization( self, lba, m ):
-        return m*lba
-    
-    def dummy( self,a,b):
-        ""
-
-    def eVtoCh(self, energy, array):
-        return int(np.squeeze(np.argwhere(array == self.find_nearest(array,energy))))
-    def ChtoeV(self, channel, array):
-        return array[channel]
-    def find_nearest(self, array, value):
+    ########### background subtractions ########
+    def bgsub_SI_fast( self, si, energy, edge, rval, fit='pl'):
         """
-        Inputs: 
-        array - array... 
-        value - value to search for in array
-        
-        Outputs:
-        array[idx] - nearest value in array
+        Quick background subtraction based on fixed 'r' value
+        For Y = Ax + b + error with fixed 'A':
+            Y' = b + error. MSE is minimized when b = mean(Y)
         """
-        array = np.asarray(array)
-        idx = (np.abs(array - value)).argmin()
-        return array[idx]
-    
-        
+        xdim, ydim, zdim = np.shape( si )
 
-########### background subtractions ########
-def bgsub_SI_fast( si, energy, edge, rval, fit='pl'):
-    """
-    Quick background subtraction based on fixed 'r' value
-    For Y = Ax + b + error with fixed 'A':
-        Y' = b + error. MSE is minimized when b = mean(Y)
-    """
-    xdim, ydim, zdim = np.shape( si )
+        fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+        y_win = si[:,:,fit_start_ch:fit_end_ch]
+        e_win = np.reshape( energy[fit_start_ch:fit_end_ch], (1,1,(fit_end_ch-fit_start_ch)) )
+        e_sub = np.reshape( energy[fit_start_ch:], (1,1,zdim-fit_start_ch) )
 
-    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
-    y_win = si[:,:,fit_start_ch:fit_end_ch]
-    e_win = np.reshape( energy[fit_start_ch:fit_end_ch], (1,1,(fit_end_ch-fit_start_ch)) )
-    e_sub = np.reshape( energy[fit_start_ch:], (1,1,zdim-fit_start_ch) )
+        bg_SI = np.zeros_like( si )  
 
-    bg_SI = np.zeros_like( si )  
+        if fit == 'lin':
+            c_fit = np.reshape( np.mean( y_win-rval*e_win, axis=(2)), (xdim,ydim,1))
+            y_fit = c_fit + rval*e_sub
 
-    if fit == 'lin':
-        c_fit = np.reshape( np.mean( y_win-rval*e_win, axis=(2)), (xdim,ydim,1))
-        y_fit = c_fit + rval*e_sub
+        if fit == 'pl':
+            c_fit = np.reshape( np.mean( np.log(y_win)-rval*np.log(e_win), axis=(2)), (xdim,ydim,1))
+            y_fit = np.exp( c_fit + rval*np.log(e_sub) )
 
-    if fit == 'pl':
-        c_fit = np.reshape( np.mean( np.log(y_win)-rval*np.log(e_win), axis=(2)), (xdim,ydim,1))
-        y_fit = np.exp( c_fit + rval*np.log(e_sub) )
+        if fit == 'exp':
+            c_fit = np.reshape( np.mean( np.log(y_win)-rval*e_win, axis=(2)), (xdim,ydim,1))
+            y_fit = np.exp( c_fit + rval*e_sub )
 
-    if fit == 'exp':
-        c_fit = np.reshape( np.mean( np.log(y_win)-rval*e_win, axis=(2)), (xdim,ydim,1))
-        y_fit = np.exp( c_fit + rval*e_sub )
+        bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
+        return bg_SI
 
-    bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
-    return bg_SI
+    def bgsub_SI_linearized( self, si, energy, edge, fit='pl'):
+        """
+        Quick background subtraction based on fixed 'r' value
+        For Y = Ax + b + error with fixed 'A':
+            Y' = b + error. MSE is minimized when b = mean(Y)
+        """
 
-def bgsub_SI_linearized( si, energy, edge, fit='pl'):
-    """
-    Quick background subtraction based on fixed 'r' value
-    For Y = Ax + b + error with fixed 'A':
-        Y' = b + error. MSE is minimized when b = mean(Y)
-    """
+        fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+        if (fit_end_ch - fit_start_ch)<2:
+            fit_end_ch = fit_start_ch+2
+        e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
+        e_sub = np.atleast_2d( energy[fit_start_ch:] ).T
+        zdim = len(energy)
 
-    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
-    if (fit_end_ch - fit_start_ch)<2:
-        fit_end_ch = fit_start_ch+2
-    e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
-    e_sub = np.atleast_2d( energy[fit_start_ch:] ).T
-    zdim = len(energy)
+        if si.ndim == 1:
+            si = np.reshape( si, (1,1,zdim))
+        elif si.ndim == 2:
+            (nx,nz) = si.shape
+            si = np.reshape( si,(nx,1,zdim))
 
-    if si.ndim == 1:
-        si = np.reshape( si, (1,1,zdim))
-    elif si.ndim == 2:
-        (nx,nz) = si.shape
-        si = np.reshape( si,(nx,1,zdim))
+        xdim, ydim, zdim = np.shape( si )
+        y_win = si[:,:,fit_start_ch:fit_end_ch]
+        y_win = np.reshape( y_win, (xdim*ydim, len(e_win))).T
 
-    xdim, ydim, zdim = np.shape( si )
-    y_win = si[:,:,fit_start_ch:fit_end_ch]
-    y_win = np.reshape( y_win, (xdim*ydim, len(e_win))).T
+        bg_SI = np.zeros_like( si )  
+        if fit == 'lin':
+            e_win = np.insert( e_win, 0, 1, axis=1)
+            e_sub = np.insert( e_sub, 0, 1, axis=1)
 
-    bg_SI = np.zeros_like( si )  
-    if fit == 'lin':
-        e_win = np.insert( e_win, 0, 1, axis=1)
-        e_sub = np.insert( e_sub, 0, 1, axis=1)
+            b_fit = self.linear_regression_QR( y_win, e_win)
+            y_fit = e_sub @ b_fit
 
-        b_fit = linear_regression_QR( y_win, e_win)
-        y_fit = e_sub @ b_fit
+        if fit == 'pl':
+            e_win = np.insert( np.log(e_win), 0, 1, axis=1)
+            e_sub = np.insert( np.log(e_sub), 0, 1, axis=1)
 
-    if fit == 'pl':
-        e_win = np.insert( np.log(e_win), 0, 1, axis=1)
-        e_sub = np.insert( np.log(e_sub), 0, 1, axis=1)
-
-        b_fit = linear_regression_QR( np.log(y_win), e_win )
-        y_fit = np.exp(e_sub @ b_fit )
-        
-        b_fit[0,:] = np.exp( b_fit[0,:] )
-
-    if fit == 'exp':
-        e_win = np.insert( e_win, 0, 1, axis=1)
-        e_sub = np.insert( e_sub, 0, 1, axis=1)
-
-        b_fit = linear_regression_QR( np.log(y_win), e_win )
-        y_fit = np.exp(e_sub @ b_fit )
-
-        b_fit[0,:] = np.exp( b_fit[0,:] )
-
-    b_fit = np.squeeze( np.reshape( b_fit, (2,xdim,ydim)) )
-    y_fit = np.reshape( y_fit.T, (xdim,ydim,len(e_sub)))
-    bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
-    bg_SI = np.squeeze( bg_SI )
-    return bg_SI, b_fit
-
-def bgsub_SI_nllsq( si, energy, edge, fit='pl',gfwhm=None, 
-                   maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None):
-    """
-    Quick background subtraction based on fixed 'r' value
-    For Y = Ax + b + error with fixed 'A':
-        Y' = b + error. MSE is minimized when b = mean(Y)
-    """
-
-    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
-    e_win = energy[fit_start_ch:fit_end_ch]
-    e_sub = energy[fit_start_ch:]
-    zdim = len(energy)
-
-    if si.ndim == 1:
-        si = np.reshape( si, (1,1,zdim))
-    elif si.ndim == 2:
-        (nx,nz) = si.shape
-        si = np.reshape( si,(nx,1,zdim))
-
-    xdim, ydim, zdim = np.shape( si )
-    y_win = si[:,:,fit_start_ch:fit_end_ch]
-    bg_SI = np.zeros_like( si )
-
-    if fit == 'pl':
-        fitfunc = ls.powerlaw
-        fit_params = np.zeros(2,xdim,ydim)
-    elif fit == 'exp':
-        fitfunc = ls.exponential
-        fit_params = np.zeros(2,xdim,ydim)
-
-    mean_spec = np.mean( y_win, (0,1) )
-    popt_init,pcov_init = curve_fit( fitfunc, e_win, mean_spec, maxfev=maxfev,method=method,verbose=0 )
-    
-    pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
-    for i in range(xdim):
-        for j in range(ydim):
-            popt_pl,pcov_pl=curve_fit( fitfunc, e_win, y_win[i,j,:],p0=popt_init,
-                                      maxfev=maxfev,method=method,verbose = 0,
-                                      ftol=ftol, gtol=gtol, xtol=xtol)
+            b_fit = self.linear_regression_QR( np.log(y_win), e_win )
+            y_fit = np.exp(e_sub @ b_fit )
             
-            bg_SI[i,j,fit_start_ch:] = si[i,j,fit_start_ch:] - fitfunc(energy[fit_start_ch:], *popt_pl)
-            fit_params[:,i,j] = popt_pl
-            pbar1.update(1)
+            b_fit[0,:] = np.exp( b_fit[0,:] )
 
-    return bg_SI, fit_params
+        if fit == 'exp':
+            e_win = np.insert( e_win, 0, 1, axis=1)
+            e_sub = np.insert( e_sub, 0, 1, axis=1)
 
-def bgsub_SI_LC(si, energy, edge, rline, fit='pl', nstd=2):
-    bg_lcpl_SI = np.zeros_like(si)
-    rmu,rstd = norm.fit(rline)
-    rmin = rmu - nstd*rstd
-    rmax = rmu + nstd*rstd
+            b_fit = self.linear_regression_QR( np.log(y_win), e_win )
+            y_fit = np.exp(e_sub @ b_fit )
 
-    (xdim, ydim, zdim) = si.shape
-    fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+            b_fit[0,:] = np.exp( b_fit[0,:] )
 
-    
-    if fit=='pl':
-        fitname = 'power law'
-        e_win = np.log(energy[fit_start_ch:fit_end_ch])
-        e_sub = np.log(energy[fit_start_ch:])
-    elif fit=='exp':
-        fitname = 'exponential'
+        b_fit = np.squeeze( np.reshape( b_fit, (2,xdim,ydim)) )
+        y_fit = np.reshape( y_fit.T, (xdim,ydim,len(e_sub)))
+        bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
+        bg_SI = np.squeeze( bg_SI )
+        return bg_SI, b_fit
+
+    def bgsub_SI_nllsq( self, si, energy, edge, fit='pl',gfwhm=None, 
+                    maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None):
+        """
+        Quick background subtraction based on fixed 'r' value
+        For Y = Ax + b + error with fixed 'A':
+            Y' = b + error. MSE is minimized when b = mean(Y)
+        """
+
+        fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
         e_win = energy[fit_start_ch:fit_end_ch]
         e_sub = energy[fit_start_ch:]
+        zdim = len(energy)
 
-    if nstd == 2:
-        print( '5th percentile {} = {}'.format( fitname, rmin))
-        print('95th percentile {} = {}'.format( fitname, rmax))
-    elif nstd == 1:
-        print('20th percentile {} = {}'.format( fitname, rmin))
-        print('80th percentile {} = {}'.format( fitname, rmax))
-    else:
-        print('Min {} = {}'.format( fitname, rmin))
-        print('Max {} = {}'.format( fitname, rmax))
+        if si.ndim == 1:
+            si = np.reshape( si, (1,1,zdim))
+        elif si.ndim == 2:
+            (nx,nz) = si.shape
+            si = np.reshape( si,(nx,1,zdim))
+
+        xdim, ydim, zdim = np.shape( si )
+        y_win = si[:,:,fit_start_ch:fit_end_ch]
+        bg_SI = np.zeros_like( si )
+
+        if fit == 'pl':
+            fitfunc = ls.powerlaw
+            fit_params = np.zeros(2,xdim,ydim)
+        elif fit == 'exp':
+            fitfunc = ls.exponential
+            fit_params = np.zeros(2,xdim,ydim)
+
+        mean_spec = np.mean( y_win, (0,1) )
+        popt_init,pcov_init = curve_fit( fitfunc, e_win, mean_spec, maxfev=maxfev,method=method,verbose=0 )
+        
+        pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
+        for i in range(xdim):
+            for j in range(ydim):
+                popt_pl,pcov_pl=curve_fit( fitfunc, e_win, y_win[i,j,:],p0=popt_init,
+                                        maxfev=maxfev,method=method,verbose = 0,
+                                        ftol=ftol, gtol=gtol, xtol=xtol)
+                
+                bg_SI[i,j,fit_start_ch:] = si[i,j,fit_start_ch:] - fitfunc(energy[fit_start_ch:], *popt_pl)
+                fit_params[:,i,j] = popt_pl
+                pbar1.update(1)
+
+        return bg_SI, fit_params
+
+    def bgsub_SI_LC( self, si, energy, edge, rline, fit='pl', nstd=2):
+        bg_lcpl_SI = np.zeros_like(si)
+        rmu,rstd = norm.fit(rline)
+        rmin = rmu - nstd*rstd
+        rmax = rmu + nstd*rstd
+
+        (xdim, ydim, zdim) = si.shape
+        fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
+
+        
+        if fit=='pl':
+            fitname = 'power law'
+            e_win = np.log(energy[fit_start_ch:fit_end_ch])
+            e_sub = np.log(energy[fit_start_ch:])
+        elif fit=='exp':
+            fitname = 'exponential'
+            e_win = energy[fit_start_ch:fit_end_ch]
+            e_sub = energy[fit_start_ch:]
+
+        if nstd == 2:
+            print( '5th percentile {} = {}'.format( fitname, rmin))
+            print('95th percentile {} = {}'.format( fitname, rmax))
+        elif nstd == 1:
+            print('20th percentile {} = {}'.format( fitname, rmin))
+            print('80th percentile {} = {}'.format( fitname, rmax))
+        else:
+            print('Min {} = {}'.format( fitname, rmin))
+            print('Max {} = {}'.format( fitname, rmax))
 
 
-    e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
-    e_win = np.append( e_win**(-rmin), e_win**(-rmax), axis=1)
-    e_sub = np.atleast_2d( energy[fit_start_ch:] )
-    e_sub = np.append( e_sub**(-rmin), e_sub**(-rmax), axis=1)
-    
-    y_win = np.reshape( si[:,:,fit_start_ch:fit_end_ch], (xdim*ydim,len(e_win) ) )
-    b_fit = linear_regression_QR( y_win, e_win )
-    y_fit = e_sub @ b_fit
+        e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
+        e_win = np.append( e_win**(-rmin), e_win**(-rmax), axis=1)
+        e_sub = np.atleast_2d( energy[fit_start_ch:] )
+        e_sub = np.append( e_sub**(-rmin), e_sub**(-rmax), axis=1)
+        
+        y_win = np.reshape( si[:,:,fit_start_ch:fit_end_ch], (xdim*ydim,len(e_win) ) )
+        b_fit = self.linear_regression_QR( y_win, e_win )
+        y_fit = e_sub @ b_fit
 
-    bgndLCPL = np.reshape( y_fit,(xdim,ydim,len(e_sub)))
-    bg_lcpl_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - bgndLCPL
+        bgndLCPL = np.reshape( y_fit,(xdim,ydim,len(e_sub)))
+        bg_lcpl_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - bgndLCPL
 
-    return 1, bg_lcpl_SI
+        return bg_lcpl_SI
 
-
-def bgsub_SI(si, energy, edge, log=False, fit='pl', gfwhm=None, lc=False,
-             maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None, **kwargs):
-    """
-    Full background subtraction function-
-    Optional LBA, log fitting, LCPL, and exponential fitting.
-    For more information on non-linear fitting function, see information at https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html
-
-    Inputs:
-    raw_data - SI
-    energy_axis - corresponding energy axis
-    edge - edge parameters defined by KEM convention
-
-    **kawrgs:
-    fit - choose the type of background fit, default == 'pl' == Power law. Can also use 'exp'== Exponential, 'lin' == Linear.
-    gfwhm - If using LBA, gfwhm corresponds to width of gaussian filter, default = None, meaning no LBA.
-    log - Boolean, if true, log transform data and fit using QR factorization, default == False.
-    lc - Boolean, if true, include LCPL or LCEX background subtracted SI, default == False.
-    nstd - standard deviation spread of r values from power law fitting. 1= 20/80 percentile, 2= 5/95 percentile. Default == 2.
-    ftol - default to 0.0005, Relative error desired in the sum of squares.
-    gtol - default to 0.00005, Orthogonality desired between the function vector and the columns of the Jacobian.
-    xtol - default to None, Relative error desired in the approximate solution.
-    maxfev - default to 50000, Only change if you are consistenly catching runtime errors and loosening gtol/ftols are not making a good enough fit.
-    method - default is 'trf', see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html#scipy.optimize.least_squares for description of methods
-    Note: may need stricter tolerances on ftol/gtol for noisier data. Anecdotally, a stricter gtol (as low as 1e-8) has a larger effect on the quality of the bgsub.
-    mask - Boolean mask defines non-vacuum region in SI, used to improve LCPL
-    threshold - mininum average counts in fit window to be included in LCPL calculation.
-
-    Outputs:
-    if lcpl == False:
-        bg_pl_SI - background subtracted SI
-    if lcpl == True:
-        bg_pl_SI, bg_lcpl_SI - background subtracted SI, LCPL background subtracted SI
-    """
-
-    fit_start_ch, fit_end_ch = np.searchsorted( energy, edge.e_bsub)
-    si = si.astype('float32')
-    if len(np.shape(si)) == 2:
-        tempx,tempz = np.shape(si)
-        si = np.reshape(si,(tempx,1,tempz))
-    if len(np.shape(si)) == 1:
-        tempz = len(si)
-        si = np.reshape(si,(1,1,tempz))
-    xdim, ydim, zdim = np.shape(si)
-
-    ## Special case: if there is vacuum in the SI and it is causing trouble with your LCPL fitting:
-    if 'mask' in kwargs.keys():
-        mask = kwargs['mask']
-    elif 'threshold' in kwargs.keys():
-        thresh = kwargs['threshold']
-        mean_back = np.mean(si[:,:,fit_start_ch:fit_end_ch],axis=2)
-        mask = mean_back > thresh
-    else:
-        mask = np.ones((xdim,ydim), dtype='bool')
-
-    ## Apply Local Background Averaging
-    if gfwhm is not None:
-        fit_data = prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch )
-    else:
-        fit_data = si
-    
-    ## If log fitting or linear fitting, find fit using qr factorization       
-    if log | (fit=='lin'):
-        bg_pl_SI, fit_params = bgsub_SI_linearized( fit_data, energy, edge, fit=fit )
-
-        maskline = np.reshape( mask,(xdim*ydim))
-        rline_long = -1*np.reshape( fit_params[1,:,:], (xdim*ydim) )
-        rline = rline_long[maskline]
-
-    ## Power law non-linear curve fitting using scipy.optimize.curve_fit
-    elif (fit=='pl') | (fit=='exp') : 
-        bg_pl_SI, fit_params = bgsub_SI_nllsq( fit_data, energy, edge, fit=fit, 
-                                           maxfev=maxfev, method=method,
-                                           ftol=ftol, gtol=gtol, xtol=xtol )
-
-    ## Given r values of SI, refit background using a linear combination of power laws, 
-    ## using either 5/95 percentile or 20/80 percentile r values.
-    if lc:
-        bg_pl_SI, bg_lcpl_SI = bgsub_SI_LC(si, energy, edge, rline, fit=fit, nstd=2)
-        return bg_pl_SI, bg_lcpl_SI
-    else:
-        return bg_pl_SI
-    
-def prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch ):
-    lba_raw = np.copy( si )
-    lba_normalized = np.copy( si )
-    for energychannel in np.arange(fit_start_ch,fit_end_ch):
-        lba_raw[:,:,energychannel] = gaussian_filter(si[:,:,energychannel],sigma=gfwhm/2.35)
-    
-    lba_mean = np.mean( lba_raw[:,:,fit_start_ch:fit_end_ch], 2 )
-    data_mean = np.mean(     si[:,:,fit_start_ch:fit_end_ch], 2)
-
-    for energychannel in np.arange(fit_start_ch,fit_end_ch):
-        lba_normalized[:,:,energychannel] = lba_raw[:,:,energychannel]*data_mean/lba_mean
-
-    return lba_normalized
-    
-
-def linear_regression_QR( y, X ):
-    # Solve Linear Regression using QR Decomposition
-    # Y = Xb + error
-    # R*b = Q.T*y minimizes MSE
-    # y: (nx1) dependent variable
-    # x: (nx1) independent variable
-    # b: (2x1) [[b0],[b1]], b0: intercept, b1: slope
-    if y.ndim == 1:
-        Y = np.atleast_2d( y ).T
-    else:
-        Y = y
-
-    Q, R = LA.qr(X)
-    b = LA.inv(R) @ (Q.T @ Y)
-
-    return b
