@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import copy
-from scipy.optimize import curve_fit
 from scipy.ndimage import affine_transform
-from sklearn.decomposition import PCA
 from tqdm import tqdm, tqdm_notebook
 import spectrum_image.SI_lineshapes as ls
 
-from lmfit import Parameters, Minimizer
+
+from sklearn.decomposition import PCA
+from tqdm import tqdm, tqdm_notebook
+
 
 def remove_outlier( si, threshold_multiplier=5, remove_nn=True):
     # remove outliers that are larger than threshold_multiplier*std + median of each spectrum
@@ -103,8 +103,6 @@ def shear_y_img( img, angle=0 ):
     img_shear =affine_transform(img, shear_matrix_ADF, order=1)
     return img_shear
     
-
-
 def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_gaussian, ftol = 1e-5 ):
     (ny, nx, ne) = si.shape
 
@@ -164,7 +162,6 @@ def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_
 
 
     return A0s, e0s, sgs
-
 
 def shift_zeroloss_SI( si, es, shifts ):
     (ny, nx, ne) = si.shape
