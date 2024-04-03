@@ -8,10 +8,53 @@ import spectrum_image.SI_lineshapes as ls
 from scipy.optimize import curve_fit
 
 
+class options_bgsub:
+
+    def __init__(self, fit='pl', log='False', lc=False, perc=(5,95), lba=False, gfwhm=None,
+                       maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None):
+        """
+        **kawrgs:
+        fit - choose the type of background fit, default == 'pl' == Power law. Can also use 'exp'== Exponential, 'lin' == Linear.
+        gfwhm - If using LBA, gfwhm corresponds to width of gaussian filter, default = None, meaning no LBA.
+        log - Boolean, if true, log transform data and fit using QR factorization, default == False.
+        lc - Boolean, if true, include LCPL or LCEX background subtracted SI, default == False.
+        perc - standard deviation spread of r values from power law fitting. Default == (5/95)
+        ftol - default to 0.0005, Relative error desired in the sum of squares.
+        gtol - default to 0.00005, Orthogonality desired between the function vector and the columns of the Jacobian.
+        xtol - default to None, Relative error desired in the approximate solution.
+        maxfev - default to 50000, Only change if you are consistenly catching runtime errors and loosening gtol/ftols are not making a good enough fit.
+        method - default is 'trf', see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html#scipy.optimize.least_squares for description of methods
+        Note: may need stricter tolerances on ftol/gtol for noisier data. Anecdotally, a stricter gtol (as low as 1e-8) has a larger effect on the quality of the bgsub.
+        """
+        self.fit = fit
+        self.log = log
+        self.lc = lc
+        self.perc = perc
+        self.lba = lba
+        self.gfwhm = gfwhm
+        self.maxfev = maxfev
+        self.method = method
+        self.ftol = ftol
+        self.gtol = gtol
+        self.xtol = xtol
+
+        if (lba == True) and (gfwhm is None or gfwhm <=0 ) :
+            print( "gfwhm not set or invalid: Setting lba = False")
+            self.lba = False
+
+        if (lc ==  True):
+            if (perc is None):
+                print( "perc not set or invalid: Setting lc = False")
+                self.lc = False
+            if (fit=='lin'):
+                print( "lc is not available for exp or pl: Setting lc = False")
+                self.lc = False
+        
+
+
+
 ######## Background Subtractions
-def bgsub_SI( si, energy, edge,log=False, fit='pl', mask=None, threshold=None,
-             lc=False, perc=(5,95), lba=False, gfwhm=None,
-            maxfev=50000, method='trf', ftol=0.0005, gtol=0.00005, xtol=None):
+def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
     """
     Full background subtraction function-
     Optional LBA, log fitting, LCPL, and exponential fitting.
@@ -21,19 +64,8 @@ def bgsub_SI( si, energy, edge,log=False, fit='pl', mask=None, threshold=None,
     raw_data - SI
     energy_axis - corresponding energy axis
     edge - edge parameters defined by KEM convention
+    fit_options - eels_bgsub.options_bg object
 
-    **kawrgs:
-    fit - choose the type of background fit, default == 'pl' == Power law. Can also use 'exp'== Exponential, 'lin' == Linear.
-    gfwhm - If using LBA, gfwhm corresponds to width of gaussian filter, default = None, meaning no LBA.
-    log - Boolean, if true, log transform data and fit using QR factorization, default == False.
-    lc - Boolean, if true, include LCPL or LCEX background subtracted SI, default == False.
-    perc - standard deviation spread of r values from power law fitting. Default == (5/95)
-    ftol - default to 0.0005, Relative error desired in the sum of squares.
-    gtol - default to 0.00005, Orthogonality desired between the function vector and the columns of the Jacobian.
-    xtol - default to None, Relative error desired in the approximate solution.
-    maxfev - default to 50000, Only change if you are consistenly catching runtime errors and loosening gtol/ftols are not making a good enough fit.
-    method - default is 'trf', see https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html#scipy.optimize.least_squares for description of methods
-    Note: may need stricter tolerances on ftol/gtol for noisier data. Anecdotally, a stricter gtol (as low as 1e-8) has a larger effect on the quality of the bgsub.
     mask - Boolean mask defines non-vacuum region in SI, used to improve LCPL
     threshold - mininum average counts in fit window to be included in LCPL calculation.
 
@@ -43,6 +75,10 @@ def bgsub_SI( si, energy, edge,log=False, fit='pl', mask=None, threshold=None,
     if lcpl == True:
         bg_pl_SI, bg_lcpl_SI - background subtracted SI, LCPL background subtracted SI
     """
+
+    ### Load Fit Options
+    if (fit_options is None):
+        fit_options = options_bgsub()
 
     fit_start_ch, fit_end_ch = np.searchsorted( energy, edge.e_bsub)
     si = si.astype('float32')
@@ -56,20 +92,18 @@ def bgsub_SI( si, energy, edge,log=False, fit='pl', mask=None, threshold=None,
 
 
     ## Apply Local Background Averaging
-    if (lba==True) and (gfwhm is not None)and (gfwhm>0):
-        fit_data = prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch )
+    if fit_options.lba==True:
+        fit_data = prepare_lba( si, fit_options.gfwhm, fit_start_ch, fit_end_ch )
     else:
         fit_data = si
     
     ## If log fitting or linear fitting, find fit using qr factorization       
-    if log or (fit=='lin'):
-        bg_pl_SI, fit_params = bgsub_SI_linearized( fit_data, energy, edge, fit=fit )
+    if fit_options.log or (fit_options.fit=='lin'):
+        bg_pl_SI, fit_params = bgsub_SI_linearized( fit_data, energy, edge, fit_options=fit_options )
 
     ## Power law non-linear curve fitting using scipy.optimize.curve_fit
-    elif (fit=='pl') or (fit=='exp') : 
-        bg_pl_SI, fit_params = bgsub_SI_nllsq( fit_data, energy, edge, fit=fit, 
-                                        maxfev=maxfev, method=method,
-                                        ftol=ftol, gtol=gtol, xtol=xtol )
+    elif (fit_options.fit=='pl') or (fit_options.fit=='exp') : 
+        bg_pl_SI, fit_params = bgsub_SI_nllsq( fit_data, energy, edge, fit_options=fit_options )
         
     ## Special case: if there is vacuum in the SI and it is causing trouble with your LCPL fitting:
     if mask is None and threshold is not None:
@@ -84,8 +118,8 @@ def bgsub_SI( si, energy, edge,log=False, fit='pl', mask=None, threshold=None,
 
     ## Given r values of SI, refit background using a linear combination of power laws, 
     ## using either 5/95 percentile or 20/80 percentile r values.
-    if lc and (fit=='pl') or (fit=='exp'):
-        bg_lcpl_SI = bgsub_SI_LC(fit_data, energy, edge, rline, fit=fit, perc=perc)
+    if fit_options.lc:
+        bg_lcpl_SI = bgsub_SI_LC(fit_data, energy, edge, rline, fit_options)
         return bg_pl_SI, bg_lcpl_SI
     else:
         return bg_pl_SI
@@ -129,12 +163,16 @@ def linear_regression_QR( y, X ):
 
 
 ########### background subtractions ########
-def bgsub_SI_fast( si, energy, edge, rval, fit='pl'):
+def bgsub_SI_fast( si, energy, edge, rval, fit_options=None):
     """
     Quick background subtraction based on fixed 'r' value
     For Y = Ax + b + error with fixed 'A':
         Y' = b + error. MSE is minimized when b = mean(Y)
     """
+    ### Load Fit Options
+    if (fit_options is None):
+        fit_options = options_bgsub()
+
     xdim, ydim, zdim = np.shape( si )
 
     fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
@@ -144,27 +182,30 @@ def bgsub_SI_fast( si, energy, edge, rval, fit='pl'):
 
     bg_SI = np.zeros_like( si )  
 
-    if fit == 'lin':
+    if fit_options.fit == 'lin':
         c_fit = np.reshape( np.mean( y_win-rval*e_win, axis=(2)), (xdim,ydim,1))
         y_fit = c_fit + rval*e_sub
 
-    if fit == 'pl':
+    if fit_options.fit == 'pl':
         c_fit = np.reshape( np.mean( np.log(y_win)-rval*np.log(e_win), axis=(2)), (xdim,ydim,1))
         y_fit = np.exp( c_fit + rval*np.log(e_sub) )
 
-    if fit == 'exp':
+    if fit_options.fit == 'exp':
         c_fit = np.reshape( np.mean( np.log(y_win)-rval*e_win, axis=(2)), (xdim,ydim,1))
         y_fit = np.exp( c_fit + rval*e_sub )
 
     bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
     return bg_SI
 
-def bgsub_SI_linearized( si, energy, edge, fit='pl'):
+def bgsub_SI_linearized( si, energy, edge, fit_options=None):
     """
     Quick background subtraction based on fixed 'r' value
     For Y = Ax + b + error with fixed 'A':
         Y' = b + error. MSE is minimized when b = mean(Y)
     """
+    ### Load Fit Options
+    if (fit_options is None):
+        fit_options = options_bgsub()
 
     fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
     if (fit_end_ch - fit_start_ch)<2:
@@ -184,14 +225,14 @@ def bgsub_SI_linearized( si, energy, edge, fit='pl'):
     y_win = np.reshape( y_win, (xdim*ydim, len(e_win))).T
 
     bg_SI = np.zeros_like( si )  
-    if fit == 'lin':
+    if fit_options.fit == 'lin':
         e_win = np.insert( e_win, 0, 1, axis=1)
         e_sub = np.insert( e_sub, 0, 1, axis=1)
 
         b_fit = linear_regression_QR( y_win, e_win)
         y_fit = e_sub @ b_fit
 
-    if fit == 'pl':
+    if fit_options.fit == 'pl':
         e_win = np.insert( np.log(e_win), 0, 1, axis=1)
         e_sub = np.insert( np.log(e_sub), 0, 1, axis=1)
 
@@ -200,7 +241,7 @@ def bgsub_SI_linearized( si, energy, edge, fit='pl'):
         
         b_fit[0,:] = np.exp( b_fit[0,:] )
 
-    if fit == 'exp':
+    if fit_options.fit == 'exp':
         e_win = np.insert( e_win, 0, 1, axis=1)
         e_sub = np.insert( e_sub, 0, 1, axis=1)
 
@@ -215,14 +256,20 @@ def bgsub_SI_linearized( si, energy, edge, fit='pl'):
     bg_SI = np.squeeze( bg_SI )
     return bg_SI, b_fit
 
-def bgsub_SI_nllsq( si, energy, edge, fit='pl',
-                    maxfev=50000, method='trf',
-                    ftol=0.0005, gtol=0.00005, xtol=None):
+def bgsub_SI_nllsq( si, energy, edge, fit_options=None):
     """
     Quick background subtraction based on fixed 'r' value
     For Y = Ax + b + error with fixed 'A':
         Y' = b + error. MSE is minimized when b = mean(Y)
     """
+    ### Load Fit Options
+    if (fit_options is None):
+        fit_options = options_bgsub()
+    maxfev = fit_options.maxfev
+    method = fit_options.method
+    ftol   = fit_options.ftol
+    gtol   = fit_options.gtol
+    xtol   = fit_options.xtol
 
     fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
     e_win = energy[fit_start_ch:fit_end_ch]
@@ -239,52 +286,59 @@ def bgsub_SI_nllsq( si, energy, edge, fit='pl',
     y_win = si[:,:,fit_start_ch:fit_end_ch]
     bg_SI = np.zeros_like( si )
 
-    if fit == 'pl':
+    if fit_options.fit == 'pl':
         fitfunc = ls.powerlaw
+        jac_Func   = ls.d_powerlaw
         fit_params = np.zeros( (2,xdim,ydim) )
-    elif fit == 'exp':
+    elif fit_options.fit == 'exp':
         fitfunc = ls.exponential
+        jac_Func = ls.d_exponential
         fit_params = np.zeros( (2,xdim,ydim) )
 
     mean_spec = np.mean( y_win, (0,1) )
-    popt_init,pcov_init = curve_fit( fitfunc, e_win, mean_spec, maxfev=maxfev,method=method,verbose=0 )
+    popt_init,_ = curve_fit( fitfunc, e_win, mean_spec, maxfev=maxfev,method=method,verbose=0 )
     
     pbar1 = tqdm(total = (xdim)*(ydim),desc = "Background subtracting")
     for i in range(xdim):
         for j in range(ydim):
-            popt_pl,pcov_pl=curve_fit( fitfunc, e_win, y_win[i,j,:],p0=popt_init,
+            popt_pl,_=curve_fit( fitfunc, e_win, y_win[i,j,:],p0=popt_init,
                                     maxfev=maxfev,method=method,verbose = 0,
-                                    ftol=ftol, gtol=gtol, xtol=xtol)
+                                    ftol=ftol, gtol=gtol, xtol=xtol, jac=jac_Func)
             
-            bg_SI[i,j,fit_start_ch:] = si[i,j,fit_start_ch:] - fitfunc(energy[fit_start_ch:], *popt_pl)
+            bg_SI[i,j,fit_start_ch:] = si[i,j,fit_start_ch:] - fitfunc(e_sub, *popt_pl)
             fit_params[:,i,j] = popt_pl
             pbar1.update(1)
 
     return bg_SI, fit_params
 
-def bgsub_SI_LC( si, energy, edge, rline, fit='pl', perc=(5,95)):
+def bgsub_SI_LC( si, energy, edge, rline, fit_options):
     bg_lcpl_SI = np.zeros_like(si)
+
+    ### Load Fit Options
+    if (fit_options is None):
+        fit_options = options_bgsub()
+
     rmu,rstd = norm.fit(rline)
 
-    rmin = norm.ppf( perc[0]*0.01, rmu, rstd )
-    rmax = norm.ppf( perc[1]*0.01, rmu, rstd )
+    rmin = norm.ppf( fit_options.perc[0]*0.01, rmu, rstd )
+    rmax = norm.ppf( fit_options.perc[1]*0.01, rmu, rstd )
 
 
     (xdim, ydim, zdim) = si.shape
     fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
 
     
-    if fit=='pl':
+    if fit_options.fit=='pl':
         fitname = 'power law'
         e_win = np.log(energy[fit_start_ch:fit_end_ch])
         e_sub = np.log(energy[fit_start_ch:])
-    elif fit=='exp':
+    elif fit_options.fit=='exp':
         fitname = 'exponential'
         e_win = energy[fit_start_ch:fit_end_ch]
         e_sub = energy[fit_start_ch:]
 
-    print( '{}th percentile {} = {}'.format( perc[0], fitname, rmin))
-    print('{}th percentile {} = {}'.format( perc[1], fitname, rmax))
+    print( '{}th percentile {} = {}'.format( fit_options.perc[0], fitname, rmin))
+    print('{}th percentile {} = {}'.format( fit_options.perc[1], fitname, rmax))
 
     len_e_win = len(e_win)
     len_e_sub = len(e_sub)

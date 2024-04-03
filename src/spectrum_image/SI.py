@@ -41,8 +41,7 @@ class SI :
 
         self.energy = np.asarray( energy )
         
-    def fitbrowser( self, edge=None, cmap='gray', figsize=(9,6), lc=False, gfwhm=10, log=True, 
-                 ftol=0.0005, gtol=0.00005, xtol=None, maxfev = 50000, method='trf'):
+    def fitbrowser( self, edge=None, cmap='gray', figsize=(9,6)):
         
         ## Initialize browser object
         self.spectrum1 = np.mean(self.si,axis=(0,1))
@@ -59,25 +58,16 @@ class SI :
         self.int_check = False
         self.slider_window = [0,self.ne]
 
-        self.lc = lc
-        self.gfwhm = gfwhm
-        self.log = log
-        self.ftol = ftol
-        self.gtol = gtol
-        self.xtol = xtol
-        self.maxfev = maxfev
-        self.method = method
+        self.fit_options = bg.options_bgsub()
+        self.fit_options.lc = False
+        self.fit_options.lba = False
+        self.fit_options.log = False
+        self.fit_options.gfwhm = 5
 
-        self.si_bsub = None#np.copy(self.si)
+        self.si_bsub = None
 
-        self.fitfunction = 'pl'
         self.r1 = -1
-        
-        results_dict={}
-        for key in ['bsub_spectrum','image','bsub_SI','edge']:
-            results_dict[key]=[]
-
-        
+                
         ##############Set Initial plot#################
         self.fig=plt.figure(figsize=figsize,layout='constrained')
 
@@ -146,10 +136,6 @@ class SI :
                                             actives=[False, False, False], check_props={'facecolor': 'k'} )
         # text_box = TextBox(self.ax['btn_save'], "LBA", textalignment="left")
         self.ui['ck_fit'].on_clicked( lambda v: self.onclick_ck_fit() )
-        self.lc = False
-        self.lba = False
-        self.log = False
-        # self.lc_checked = False
 
         self.ui['ck_roi2'] = CheckButtons(ax=self.ax['ck_roi2'], labels= ["Enable ROI 2"],
                                         actives=[False], check_props={'facecolor': 'k'} )
@@ -251,10 +237,11 @@ class SI :
 
     ################### Update Functions ###################
     def onclick_ck_fit( self ):
-        self.lc = self.ui['ck_fit'].get_status()[0]
-        self.lba = self.ui['ck_fit'].get_status()[1]
-        self.log = self.ui['ck_fit'].get_status()[2]
-        if self.lc == True and self.fitfunction == 'lin':
+        self.fit_options.lc = self.ui['ck_fit'].get_status()[0]
+        self.fit_options.lba = self.ui['ck_fit'].get_status()[1]
+        self.fit_options.log = self.ui['ck_fit'].get_status()[2]
+        if self.fit_options.lc == True and self.fit_options.fit == 'lin':
+            self.fit_options.lc = False
             self.ui['ck_fit'].set_active(0)
     
     def onclick_ck_ylock(self):
@@ -344,12 +331,12 @@ class SI :
         self.ui['bsub2'].extents = erange
         self.edge.e_bsub = erange
 
-        self.bsub1, fit_param1 = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+        self.bsub1, fit_param1 = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit_options=self.fit_options)
         self.r1 = fit_param1[1]
         self.update_fit1()
 
         if self.roi2_enabled:
-            self.bsub2, fit_param2 = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+            self.bsub2, fit_param2 = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit_options=self.fit_options)
             self.r2 = fit_param2[1]
             self.update_fit2()
 
@@ -403,7 +390,7 @@ class SI :
                 self.update_spectrum1()
                 
                 if self.fit_check:
-                    self.bsub1, fit_param = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+                    self.bsub1, fit_param = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit_options=self.fit_options)
                     self.r1 = fit_param[1]
                     self.update_fit1()
             elif event.button == MouseButton.RIGHT:
@@ -411,7 +398,7 @@ class SI :
                     # Right Click on Inelastic Image
                     self.update_spectrum2()
                     if self.fit_check:
-                        self.bsub2, fit_param = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+                        self.bsub2, fit_param = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit_options=self.fit_options)
                         self.r2 = fit_param[1]
                         self.update_fit2()
 
@@ -440,37 +427,31 @@ class SI :
 
     def fitcheck(self, label):
         fitdict = {'Power law': 'pl', 'Exponential': 'exp', 'Linear': 'lin'}
-        self.fitfunction = fitdict[label]
-        if self.fitfunction == 'lin' and self.lc==True:
+        self.fit_options.fit = fitdict[label]
+        if self.fit_options.fit == 'lin' and self.fit_options.lc==True:
             self.ui['ck_fit'].set_active(0)
         if self.fit_check:
-            self.bsub1, fit_param = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit=self.fitfunction)
+            self.bsub1, fit_param = bg.bgsub_SI_linearized( self.spectrum1, self.energy, self.edge, fit_options=self.fit_options)
             self.r1 = fit_param[1]
             self.update_fit1()
             if self.roi2_enabled:
-                self.bsub2, fit_param = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit=self.fitfunction)
+                self.bsub2, fit_param = bg.bgsub_SI_linearized( self.spectrum2, self.energy, self.edge, fit_options=self.fit_options)
                 self.r2 = fit_param[1]
                 self.update_fit2()
         
     def fint_button(self, event):
         if (self.int_check and self.fit_check):
-            self.si_bsub = bg.bgsub_SI_fast( self.si, self.energy, self.edge, self.r1, fit=self.fitfunction )
+            self.si_bsub = bg.bgsub_SI_fast( self.si, self.energy, self.edge, self.r1, fit_options=self.fit_options)
             
             self.update_image()
 
 
     def int_button(self, event):
         if (self.int_check and self.fit_check):
-            if self.lc:
-                _,self.si_bsub = bg.bgsub_SI( self.si, self.energy, self.edge, log=self.log, fit=self.fitfunction,
-                                              lc=self.lc, perc=(9,95), lba= self.lba, gfwhm=self.gfwhm,
-                                              maxfev=self.maxfev,method=self.method,
-                                              ftol=self.ftol,gtol=self.gtol,xtol=self.xtol )
+            if self.fit_options.lc:
+                _,self.si_bsub = bg.bgsub_SI( self.si, self.energy, self.edge, fit_options=self.fit_options)
             else:
-                self.si_bsub =   bg.bgsub_SI( self.si, self.energy, self.edge, log=self.log, fit=self.fitfunction,
-                                              lc=self.lc, perc=(9,95), lba= self.lba, gfwhm=self.gfwhm,
-                                              maxfev=self.maxfev,method=self.method,
-                                              ftol=self.ftol,gtol=self.gtol,xtol=self.xtol )
+                self.si_bsub =   bg.bgsub_SI( self.si, self.energy, self.edge, fit_options=self.fit_options)
             self.update_image()
 
     def update_image(self):
