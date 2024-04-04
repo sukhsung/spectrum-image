@@ -51,9 +51,26 @@ class options_bgsub:
                 self.lc = False
         
 
+##### Linear Regression
+def linear_regression_QR( y, X ):
+    # Solve Linear Regression using QR Decomposition
+    # Y = Xb + error
+    # R*b = Q.T*y minimizes MSE
+    # y: (nx1) dependent variable
+    # x: (nx1) independent variable
+    # b: (2x1) [[b0],[b1]], b0: intercept, b1: slope
+    if y.ndim == 1:
+        Y = np.atleast_2d( y ).T
+    else:
+        Y = y
+
+    Q, R = LA.qr(X)
+    b = LA.inv(R) @ (Q.T @ Y)
+
+    return b
 
 
-######## Background Subtractions
+######## Background Subtractions SI
 def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
     """
     Full background subtraction function-
@@ -81,6 +98,7 @@ def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
         fit_options = options_bgsub()
 
     fit_start_ch, fit_end_ch = np.searchsorted( energy, edge.e_bsub)
+
     si = si.astype('float32')
     if len(np.shape(si)) == 2:
         tempx,tempz = np.shape(si)
@@ -93,7 +111,7 @@ def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
 
     ## Apply Local Background Averaging
     if fit_options.lba==True:
-        fit_data = prepare_lba( si, fit_options.gfwhm, fit_start_ch, fit_end_ch )
+        fit_data = prepare_si_lba( si, fit_options.gfwhm, fit_start_ch, fit_end_ch )
     else:
         fit_data = si
     
@@ -124,43 +142,6 @@ def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
     else:
         return bg_pl_SI
     
-
-def prepare_lba( si, gfwhm, fit_start_ch, fit_end_ch ):
-    lba_raw = np.copy( si )
-    lba_normalized = np.copy( si )
-    for energychannel in np.arange(fit_start_ch,fit_end_ch):
-        lba_raw[:,:,energychannel] = gaussian_filter(si[:,:,energychannel],sigma=gfwhm/2.35)
-    
-    lba_mean = np.mean( lba_raw[:,:,fit_start_ch:fit_end_ch], 2 )
-    data_mean = np.mean(     si[:,:,fit_start_ch:fit_end_ch], 2)
-
-    for energychannel in np.arange(fit_start_ch,fit_end_ch):
-        lba_normalized[:,:,energychannel] = lba_raw[:,:,energychannel]*data_mean/lba_mean
-
-    return lba_normalized
-    
-
-def linear_regression_QR( y, X ):
-    # Solve Linear Regression using QR Decomposition
-    # Y = Xb + error
-    # R*b = Q.T*y minimizes MSE
-    # y: (nx1) dependent variable
-    # x: (nx1) independent variable
-    # b: (2x1) [[b0],[b1]], b0: intercept, b1: slope
-    if y.ndim == 1:
-        Y = np.atleast_2d( y ).T
-    else:
-        Y = y
-
-    Q, R = LA.qr(X)
-    b = LA.inv(R) @ (Q.T @ Y)
-
-    return b
-
-
-
-
-
 
 ########### background subtractions ########
 def bgsub_SI_fast( si, energy, edge, rval, fit_options=None):
@@ -213,12 +194,6 @@ def bgsub_SI_linearized( si, energy, edge, fit_options=None):
     e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
     e_sub = np.atleast_2d( energy[fit_start_ch:] ).T
     zdim = len(energy)
-
-    if si.ndim == 1:
-        si = np.reshape( si, (1,1,zdim))
-    elif si.ndim == 2:
-        (nx,nz) = si.shape
-        si = np.reshape( si,(nx,1,zdim))
 
     xdim, ydim, zdim = np.shape( si )
     y_win = si[:,:,fit_start_ch:fit_end_ch]
@@ -276,12 +251,6 @@ def bgsub_SI_nllsq( si, energy, edge, fit_options=None):
     e_sub = energy[fit_start_ch:]
     zdim = len(energy)
 
-    if si.ndim == 1:
-        si = np.reshape( si, (1,1,zdim))
-    elif si.ndim == 2:
-        (nx,nz) = si.shape
-        si = np.reshape( si,(nx,1,zdim))
-
     xdim, ydim, zdim = np.shape( si )
     y_win = si[:,:,fit_start_ch:fit_end_ch]
     bg_SI = np.zeros_like( si )
@@ -311,7 +280,7 @@ def bgsub_SI_nllsq( si, energy, edge, fit_options=None):
 
     return bg_SI, fit_params
 
-def bgsub_SI_LC( si, energy, edge, rline, fit_options):
+def bgsub_SI_LC( si, energy, edge, rline, fit_options=None):
     bg_lcpl_SI = np.zeros_like(si)
 
     ### Load Fit Options
@@ -359,3 +328,17 @@ def bgsub_SI_LC( si, energy, edge, rline, fit_options):
 
     return bg_lcpl_SI
 
+def prepare_si_lba( si, gfwhm, fit_start_ch, fit_end_ch ):
+    lba_raw = np.copy( si )
+    lba_normalized = np.copy( si )
+    for energychannel in np.arange(fit_start_ch,fit_end_ch):
+        lba_raw[:,:,energychannel] = gaussian_filter(si[:,:,energychannel],sigma=gfwhm/2.35)
+    
+    lba_mean = np.mean( lba_raw[:,:,fit_start_ch:fit_end_ch], 2 )
+    data_mean = np.mean(     si[:,:,fit_start_ch:fit_end_ch], 2)
+
+    for energychannel in np.arange(fit_start_ch,fit_end_ch):
+        lba_normalized[:,:,energychannel] = lba_raw[:,:,energychannel]*data_mean/lba_mean
+
+    return lba_normalized
+    
