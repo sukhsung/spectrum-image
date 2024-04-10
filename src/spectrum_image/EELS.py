@@ -74,8 +74,9 @@ class SpectrumImage :
         self.ax['spec']=self.fig.add_axes([0.525,0.45,0.45,0.45]) # Spectrum
         self.ax['spec2'] = self.fig.add_axes([0.525,0.45,0.45,0.20]) # Spec 2
         self.ax['ck_ysetting'] = self.fig.add_axes([0.85,0.89,0.13,0.07]) # Y-lock chkbox
-        self.ax['ck_roi2'] = self.fig.add_axes([0.025,0.10,0.15,0.05]) # ROI2 chkbox
-        self.ax['ck_adf'] = self.fig.add_axes([0.18,0.10,0.15,0.05]) # adf chkbox
+        self.ax['ck_roi2'] = self.fig.add_axes([0.025,0.0,0.15,0.05]) # ROI2 chkbox
+        if self.adf is not None:
+            self.ax['ck_adf'] = self.fig.add_axes([0.18,0.0,0.15,0.05]) # adf chkbox
         self.ax['e_view']=self.fig.add_axes([0.625,0.30,0.25,0.05]) # Range slider
         self.ax['e_bsub']=self.fig.add_axes([0.625,0.25,0.25,0.05]) # Range slider
         self.ax['e_int'] =self.fig.add_axes([0.625,0.20,0.25,0.05]) # Range slider
@@ -90,7 +91,7 @@ class SpectrumImage :
         ## Initialize plot handles
         self.h = {}
         ################## ax['inel'] ######################
-        self.h['inel'] = self.ax['inel'].imshow( self.im_inel,cmap = cmap)
+        self.h['inel'] = self.ax['inel'].matshow( self.im_inel,cmap = cmap)
         self.ax['inel'].set_axis_off()
         self.ax['inel'].set_title('Inelastic image')
 
@@ -137,9 +138,10 @@ class SpectrumImage :
         self.ui['ck_roi2'].on_clicked( lambda v: self.onclick_ck_roi2() )
         self.roi2_enabled = False
 
-        self.ui['ck_adf'] = CheckButtons(ax=self.ax['ck_adf'], labels= ["Toggle ADF"],
-                                        actives=[False], check_props={'facecolor': 'k'} )
-        self.ui['ck_adf'].on_clicked( lambda v: self.onclick_ck_adf() )
+        if self.adf is not None:
+            self.ui['ck_adf'] = CheckButtons(ax=self.ax['ck_adf'], labels= ["Toggle ADF"],
+                                            actives=[False], check_props={'facecolor': 'k'} )
+            self.ui['ck_adf'].on_clicked( lambda v: self.onclick_ck_adf() )
         self.adf_enabled = False
 
 
@@ -446,7 +448,7 @@ class SpectrumImage :
                     maxval =  1.2*self.spectrum2[slidermin:slidermax].max()
                     minval =  0.8*self.spectrum2[slidermin:slidermax].min()
 
-                    self.ax['spec2'].set_ylim([minval,maxval])
+                self.ax['spec2'].set_ylim([minval,maxval])
 
 
     ############### Event Handlers ###################
@@ -596,7 +598,7 @@ class LineProfile :
         ## Initialize plot handles
         self.h = {}
         ################## ax['inel'] ######################
-        self.h['inel'] = self.ax['inel'].imshow( self.im_inel,cmap = cmap,origin='lower' )
+        self.h['inel'] = self.ax['inel'].matshow( self.im_inel,cmap = cmap,aspect=self.ny/self.ne ,origin='lower')
         self.ax['inel'].set_axis_off()
         self.ax['inel'].set_title('Inelastic image')
 
@@ -661,6 +663,7 @@ class LineProfile :
 
 
         self.rescale_yrange()
+
         # return results_dict,selector_collection
 
     def onclick_figure_browser( self, event ):
@@ -730,7 +733,7 @@ class LineProfile :
         ## Initialize plot handles
         self.h = {}
         ################## ax['inel'] ######################
-        self.h['inel'] = self.ax['inel'].imshow( self.im_inel,cmap = cmap,origin='lower' )
+        self.h['inel'] = self.ax['inel'].matshow( self.im_inel,cmap = cmap,origin='lower' )
         self.ax['inel'].set_axis_off()
         self.ax['inel'].set_title('Inelastic image')
 

@@ -3,10 +3,11 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.ndimage import affine_transform
 from tqdm import tqdm, tqdm_notebook
-import spectrum_image.SI_lineshapes as ls
+import spectrum_image.EELS_lineshapes as ls
 
 from sklearn.decomposition import PCA
 from tqdm import tqdm, tqdm_notebook
+import hyperspy.api as hs
 
 
 def remove_outlier( si, threshold_multiplier=5, remove_nn=True):
@@ -35,6 +36,121 @@ def remove_outlier( si, threshold_multiplier=5, remove_nn=True):
                 plt.plot(cur_spec)
     
     return si_cleaned
+
+
+def specload(file, show=True):
+    raw = hs.load(file)
+    if isinstance(raw, list):
+        for i in range(len(raw)):
+            if raw[i].metadata.General.title == 'EELS Spectrum Image':
+                rawSI = raw[i]
+    else:
+        rawSI = raw
+        
+    params=rawSI.axes_manager
+    if show==True:
+        print(params)
+    ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+    disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+    rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
+    energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
+    pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
+    if len(energy)!= rawSI.z:
+        energy = energy[:-1]
+    return (rawSI.data, energy, pxscale, disp, params)
+
+
+def specload_dual(file, norm = False, type = "1"):
+    """
+    Uses hyperspy.api to load SI - information at http://hyperspy.org/hyperspy-doc/current/api/hyperspy.api.html
+
+    Input:
+    file - file location
+
+    Outputs:
+    energy - energy axis of spectra
+    rawSI.data - 3D SI array
+    pxscale - pixel size (check params for scale)
+    disp - energy resolution
+    params - axes_manager of file
+    type - which version of DM you are using; type 1 works on data from the Titan, type 2 from the Kraken
+    """
+
+    energies = []
+    spectra = []
+    paramses = []
+
+    if type == '1':
+        ## normal load on the low loss region
+        rawSI=hs.load(file)[0]
+        params=rawSI.axes_manager
+        print(params)
+        ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+        disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+        rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
+        energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
+        pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
+        if len(energy)!= rawSI.z:
+            energy = energy[:-1]
+        if norm == True:
+            rawSI.data = rawSI.data/sum(rawSI.data)
+        energies.append(energy)
+        spectra.append(rawSI.data)
+        paramses.append(params)
+
+        ## same for the high loss region
+        rawSI=hs.load(file)[1]
+        params=rawSI.axes_manager
+        print(params)
+        ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+        disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+        rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
+        energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
+        pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
+        if len(energy)!= rawSI.z:
+            energy = energy[:-1]
+        if norm == True:
+            rawSI.data = rawSI.data/sum(rawSI.data)
+        energies.append(energy)
+        spectra.append(rawSI.data)
+        paramses.append(params)
+
+    elif type == '2':
+            ## normal load on the low loss region
+        rawSI=hs.load(file)[2]
+        params=rawSI.axes_manager
+        print(params)
+        ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+        disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+        rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
+        energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
+        pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
+        if len(energy)!= rawSI.z:
+            energy = energy[:-1]
+        if norm == True:
+            rawSI.data = rawSI.data/sum(rawSI.data)
+        energies.append(energy)
+        spectra.append(rawSI.data)
+        paramses.append(params)
+
+        ## same for the high loss region
+        rawSI=hs.load(file)[3]
+        params=rawSI.axes_manager
+        print(params)
+        ch1=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['offset'],4)
+        disp=np.round(rawSI.axes_manager[2j].get_axis_dictionary()['scale'],4)
+        rawSI.z=int(rawSI.axes_manager[2j].get_axis_dictionary()['size'])
+        energy= np.round(np.arange(ch1,ch1+rawSI.z*disp,disp),4)
+        pxscale = rawSI.axes_manager[0].get_axis_dictionary()['scale']
+        if len(energy)!= rawSI.z:
+            energy = energy[:-1]
+        if norm == True:
+            rawSI.data = rawSI.data/sum(rawSI.data)
+        energies.append(energy)
+        spectra.append(rawSI.data)
+        paramses.append(params)
+
+    return(energies, spectra, pxscale, disp, paramses)
 
 
 def get_hyperspy_data(hs_si):

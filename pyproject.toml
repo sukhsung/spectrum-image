@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spectrum_image"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
   "numpy",
   "matplotlib",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 requires-python = ">=3.10"
 authors = [
-  {name = "Suk Hyun Sung", email = "sukhsung@umich.edu"},
+  {name = "Suk Hyun Sung", email = "sukhsung@umich.edu"}
 ]
 description = "Python Package for EELS (Electron Energy Loss Spectroscopy) Analysis"
 readme = "README.md"
@@ -28,6 +28,6 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sukhsung/spectrum_image"
-Repository = "https://github.com/sukhsung/spectrum_image"
-"Bug Tracker" = "https://github.com/sukhsung/spectrum_image/issues"
+Homepage = "https://github.com/sukhsung/spectrum-image"
+Repository = "https://github.com/sukhsung/spectrum-image"
+"Bug Tracker" = "https://github.com/sukhsung/spectrum-image/issues"

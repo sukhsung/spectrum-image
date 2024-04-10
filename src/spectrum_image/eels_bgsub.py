@@ -154,7 +154,13 @@ def bgsub_SI_fast( si, energy, edge, rval, fit_options=None):
     if (fit_options is None):
         fit_options = options_bgsub()
 
-    xdim, ydim, zdim = np.shape( si )
+    if len(np.shape(si)) == 2:
+        tempx,tempz = np.shape(si)
+        si = np.reshape(si,(tempx,1,tempz))
+    if len(np.shape(si)) == 1:
+        tempz = len(si)
+        si = np.reshape(si,(1,1,tempz))
+    xdim, ydim, zdim = np.shape(si)
 
     fit_start_ch, fit_end_ch = np.searchsorted(energy, edge.e_bsub)
     y_win = si[:,:,fit_start_ch:fit_end_ch]
@@ -176,7 +182,7 @@ def bgsub_SI_fast( si, energy, edge, rval, fit_options=None):
         y_fit = np.exp( c_fit + rval*e_sub )
 
     bg_SI[:,:,fit_start_ch:] = si[:,:,fit_start_ch:] - y_fit
-    return bg_SI
+    return np.squeeze(bg_SI)
 
 def bgsub_SI_linearized( si, energy, edge, fit_options=None):
     """
@@ -194,6 +200,13 @@ def bgsub_SI_linearized( si, energy, edge, fit_options=None):
     e_win = np.atleast_2d( energy[fit_start_ch:fit_end_ch] ).T
     e_sub = np.atleast_2d( energy[fit_start_ch:] ).T
     zdim = len(energy)
+
+    if len(np.shape(si)) == 2:
+        tempx,tempz = np.shape(si)
+        si = np.reshape(si,(tempx,1,tempz))
+    if len(np.shape(si)) == 1:
+        tempz = len(si)
+        si = np.reshape(si,(1,1,tempz))
 
     xdim, ydim, zdim = np.shape( si )
     y_win = si[:,:,fit_start_ch:fit_end_ch]

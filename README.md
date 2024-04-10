@@ -20,8 +20,6 @@ Check out the notebook example (`example_eels.ipynb`) to get started.
 `tqdm`
 `numpy`
 `lmfit`
-
-## Optional Dependencies for running example notebook
 `hyperspy`
 `tifffile`
 
