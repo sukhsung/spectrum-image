@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.ndimage import affine_transform
 from tqdm import tqdm, tqdm_notebook
-import spectrum_image.EELS_lineshapes as ls
+import spectrum_image.EELS.EELS_lineshapes as ls
 
 from sklearn.decomposition import PCA
 from tqdm import tqdm, tqdm_notebook

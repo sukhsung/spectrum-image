@@ -4,7 +4,7 @@ from tqdm import tqdm, tqdm_notebook
 import numpy.linalg as LA
 from scipy.ndimage import gaussian_filter
 from scipy.stats import norm
-import spectrum_image.SI_lineshapes as ls
+import spectrum_image.EELS.EELS_lineshapes as ls
 from scipy.optimize import curve_fit
 
 
@@ -131,6 +131,7 @@ def bgsub_SI( si, energy, edge, fit_options=None, mask=None, threshold=None):
         mask = np.ones((xdim,ydim), dtype='bool')
     
     maskline = np.reshape( mask,(xdim*ydim))
+    fit_params = np.reshape( fit_params, (2, xdim, ydim))
     rline_long = -1*np.reshape( fit_params[1,:,:], (xdim*ydim) )
     rline = rline_long[maskline]
 

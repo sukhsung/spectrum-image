@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spectrum_image"
-version = "0.2.5"
+version = "0.3"
 dependencies = [
   "numpy",
   "matplotlib",
@@ -16,7 +16,9 @@ dependencies = [
 ]
 requires-python = ">=3.10"
 authors = [
-  {name = "Suk Hyun Sung", email = "sukhsung@umich.edu"}
+  {name = "Suk Hyun Sung", email = "sukhsung@umich.edu"},
+  {name = "Michale Colletta", email = "mrc297@cornell.edu"},
+  {name = "Alex Stangle", email = "astangel@umich.edu"}
 ]
 description = "Python Package for EELS (Electron Energy Loss Spectroscopy) Analysis"
 readme = "README.md"
