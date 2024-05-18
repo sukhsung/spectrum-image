@@ -20,7 +20,16 @@ class EnergyMap :
         self.eloss = eloss
         self.einc = einc
 
-    def browser( self, cmap='gray', figsize=(6,8)):
+        ind_eloss = np.argsort( self.eloss )
+        ind_einc  = np.argsort( self.einc )
+
+        self.eloss = self.eloss[ind_eloss]
+        self.einc = self.einc[ind_einc]
+
+        self.si = self.si[ind_eloss,:]
+        self.si = self.si[:,ind_einc]
+
+    def browser( self, cmap='gray', figsize=(6,8), vmin=None, vmax=None):
         
         self.int_dir = 0
         self.eaxis  = [self.einc, self.eloss]
@@ -44,17 +53,20 @@ class EnergyMap :
         ## Initialize plot handles
         self.h = {}
         ################## ax['inel'] ######################
-        self.h['inel'] = self.ax['inel'].pcolormesh( self.einc, self.eloss, self.im_inel,cmap = cmap)
+        self.h['inel'] = self.ax['inel'].pcolormesh( self.einc, self.eloss, self.im_inel,cmap = cmap, vmin=vmin, vmax=vmax)
         self.ax['inel'].set_axis_on()
         self.ax['inel'].set_title('RIXS Energy Map')
         self.ax['inel'].set_ylabel('Energy Loss (eV)')
         self.ax['inel'].set_xlabel('Incident Energy (eV)')
+        self.ax['inel'].set_xlim( (np.min(self.einc),np.max(self.einc)))
+        self.ax['inel'].set_ylim( (np.min(self.eloss),np.max(self.eloss)))
+        # self.ax['inel'].autoscale(enable=True, axis='xy', tight=True)
 
         ################## ax['spec'] ######################
         self.h['spec1'], = self.ax['spec'].plot(self.eaxis[self.int_dir], self.spec1,color='crimson')
         self.h['spec2'], = self.ax['spec'].plot(self.eaxis[self.int_dir], self.spec2,color='royalblue')
         self.h['spec2'].set_alpha(0)
-        self.ax['spec'].set_yticks([])
+        # self.ax['spec'].set_yticks([])
         self.ax['spec'].set_xlabel(self.elabel[self.int_dir])
         self.ax['spec'].set_ylabel('Intensity')
 
@@ -70,7 +82,7 @@ class EnergyMap :
         self.y_log = False
 
 
-        self.ui['ck_roisetting'] = CheckButtons(ax=self.ax['ck_roisetting'], labels= ["Enable ROI 2", "Flip Integration"],
+        self.ui['ck_roisetting'] = CheckButtons(ax=self.ax['ck_roisetting'], labels= ["Enable ROI 2", "Integrate E-loss"],
                                         actives=[False, False], check_props={'facecolor': 'k'} )
         self.ui['ck_roisetting'].on_clicked( lambda v: self.onclick_ck_roisetting() )
         self.roi2_enabled = False
@@ -117,11 +129,14 @@ class EnergyMap :
             self.ui['roi2'].set_visible( False )
             self.ui['roi2'].set_active( False )
 
+
         # Check for integration flip
         if self.ui['ck_roisetting'].get_status()[1]:
             self.int_dir = 1
+            self.ui['ck_roisetting'].labels[1].set_text('Integrate E-inc')
         else:
             self.int_dir = 0
+            self.ui['ck_roisetting'].labels[1].set_text('Integrate E-loss')
 
         self.int_dir = int(self.ui['ck_roisetting'].get_status()[1])
         self.on_change_roi1()
@@ -130,15 +145,22 @@ class EnergyMap :
 
     def on_change_roi1(self):
         roi1 = self.ui['roi1'].extents
+        roi2 = self.ui['roi2'].extents
+        if self.int_dir == 0:
+            self.ui['roi2'].extents = (roi1[0],roi1[1],roi2[2],roi2[3])
+        else:
+            self.ui['roi2'].extents = (roi2[0],roi2[1],roi1[2],roi1[3])
 
-        eimin = np.searchsorted( self.einc,  int(roi1[0]))
-        eimax = np.searchsorted( self.einc,  int(roi1[1]))
-        elmin = np.searchsorted( self.eloss, int(roi1[2]))
-        elmax = np.searchsorted( self.eloss, int(roi1[3]))
+        eimin = np.searchsorted( self.einc,  float(roi1[0]))
+        eimax = np.searchsorted( self.einc,  float(roi1[1]))
+        elmin = np.searchsorted( self.eloss, float(roi1[2]))
+        elmax = np.searchsorted( self.eloss, float(roi1[3]))
+
         if eimin == eimax:
             eimax += 1
         if elmin == elmax:
             elmax += 1
+
 
         if self.int_dir == 0:
             self.spec1  = np.mean(self.si[elmin:elmax,:],axis=(0))
@@ -150,22 +172,23 @@ class EnergyMap :
         self.ax['spec'].set_xlim( eminmax )
         self.h['spec1'].set_data( self.eaxis[self.int_dir], self.spec1)
 
-        # roi2 =self.ui['roi2'].extents
-        # if self.int_dir == 0:
-        #     self.ui['roi2'].extents = (eimin,eimax,roi2[2],roi2[3])
-        # else:
-        #     print((roi2[0],roi2[1], elmin,elmax))
-        #     self.ui['roi2'].extents = (roi2[0],roi2[1], elmin,elmax)
+
 
         self.rescale_yrange()
 
     def on_change_roi2(self):
+        roi1 = self.ui['roi1'].extents
         roi2 = self.ui['roi2'].extents
 
-        eimin = np.searchsorted( self.einc,  int(roi2[0]))
-        eimax = np.searchsorted( self.einc,  int(roi2[1]))
-        elmin = np.searchsorted( self.eloss, int(roi2[2]))
-        elmax = np.searchsorted( self.eloss, int(roi2[3]))
+        if self.int_dir == 0:
+            self.ui['roi2'].extents = (roi1[0],roi1[1],roi2[2],roi2[3])
+        else:
+            self.ui['roi2'].extents = (roi2[0],roi2[1],roi1[2],roi1[3])
+
+        eimin = np.searchsorted( self.einc,  float(roi2[0]))
+        eimax = np.searchsorted( self.einc,  float(roi2[1]))
+        elmin = np.searchsorted( self.eloss, float(roi2[2]))
+        elmax = np.searchsorted( self.eloss, float(roi2[3]))
         if eimin == eimax:
             eimax += 1
         if elmin == elmax:
@@ -173,12 +196,10 @@ class EnergyMap :
 
         if self.int_dir == 0:
             self.spec2  = np.mean(self.si[elmin:elmax,:],axis=(0))
-            eminmax = (self.einc[eimin], self.einc[eimax])
         else:
             self.spec2 = np.mean(self.si[:,eimin:eimax],axis=(1))
-            eminmax = (self.eloss[elmin], self.eloss[elmax])
         
-        self.ax['spec'].set_xlim( eminmax )
+
         self.h['spec2'].set_data( self.eaxis[self.int_dir], self.spec2)
 
         self.rescale_yrange()
@@ -190,11 +211,9 @@ class EnergyMap :
         if self.y_log:
             self.ax['spec'].set_yscale('log')
             self.ax['spec'].set_ylabel('Log Intensity')
-            self.ax['spec'].set_yticks([])
         else:
             self.ax['spec'].set_yscale('linear')
             self.ax['spec'].set_ylabel('Intensity')
-            self.ax['spec'].set_yticks([])
 
         if self.y_locked == False:
 
@@ -211,43 +230,43 @@ class EnergyMap :
 
             if not self.y_log:
                 if self.int_dir == 1:
-                    print(self.spec1)
-                    maxval =  1.1*self.spec1[eimin:eimax].max()
-                    minval =  min( 0.9*self.spec1[eimin:eimax].min(),0)
+                    maxval =  1.02*self.spec1.max()
+                    minval =  0.98*self.spec1.min()
                 else:
-                    maxval =  1.1*self.spec1[elmin:elmax].max()
-                    minval =  min( 0.9*self.spec1[elmin:elmax].min(),0)
+                    maxval =  1.02*self.spec1.max()
+                    minval =  0.98*self.spec1.min()
 
             else:
                 if self.int_dir == 1:
-                    maxval =  1.2*self.spec1[eimin:eimax].max()
-                    minval =  0.8*self.spec1[eimin:eimax].min()
+                    maxval =  1.1*self.spec1.max()
+                    minval =  0.9*self.spec1.min()
                 else:
-                    maxval =  1.2*self.spec1[elmin:elmax].max()
-                    minval =  0.8*self.spec1[elmin:elmax].min()
+                    maxval =  1.1*self.spec1.max()
+                    minval =  0.9*self.spec1.min()
 
 
 
             if self.roi2_enabled:
                 if not self.y_log:
                     if self.int_dir == 1:
-                        maxval2 =  1.1*self.spec2[eimin:eimax].max()
-                        minval2 =  min( 0.9*self.spec2[eimin:eimax].min(),0)
+                        maxval2 =  1.02*self.spec2.max()
+                        minval2 =  0.98*self.spec2.min()
                     else:
-                        maxval2 =  1.1*self.spec2[elmin:elmax].max()
-                        minval2 =  min( 0.9*self.spec2[elmin:elmax].min(),0)
+                        maxval2 =  1.02*self.spec2.max()
+                        minval2 =  0.98*self.spec2.min()
 
                 else:
                     if self.int_dir == 1:
-                        maxval2 =  1.2*self.spec2[eimin:eimax].max()
-                        minval2 =  0.8*self.spec2[eimin:eimax].min()
+                        maxval2 =  1.1*self.spec2.max()
+                        minval2 =  0.9*self.spec2.min()
                     else:
-                        maxval2 =  1.2*self.spec2[elmin:elmax].max()
-                        minval2 =  0.8*self.spec2[elmin:elmax].min()
+                        maxval2 =  1.1*self.spec2.max()
+                        minval2 =  0.9*self.spec2.min()
 
                 minval = min( minval, minval2)
                 maxval = max( maxval, maxval2)
 
+            # print( minval, maxval )
 
             self.ax['spec'].set_ylim([minval,maxval])
 
