@@ -134,9 +134,11 @@ class EnergyMap :
         if self.ui['ck_roisetting'].get_status()[1]:
             self.int_dir = 1
             self.ui['ck_roisetting'].labels[1].set_text('Integrate E-inc')
+            self.ax['spec'].set_xlabel('Energy Loss (eV)')
         else:
             self.int_dir = 0
             self.ui['ck_roisetting'].labels[1].set_text('Integrate E-loss')
+            self.ax['spec'].set_xlabel('Incident Energy (eV)')
 
         self.int_dir = int(self.ui['ck_roisetting'].get_status()[1])
         self.on_change_roi1()
