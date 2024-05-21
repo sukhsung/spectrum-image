@@ -9,6 +9,10 @@ from sklearn.decomposition import PCA
 from tqdm import tqdm, tqdm_notebook
 import hyperspy.api as hs
 
+import lmfit as lm
+from lmfit.models import GaussianModel
+
+
 
 def remove_outlier( si, threshold_multiplier=5, remove_nn=True):
     # remove outliers that are larger than threshold_multiplier*std + median of each spectrum
@@ -37,7 +41,6 @@ def remove_outlier( si, threshold_multiplier=5, remove_nn=True):
     
     return si_cleaned
 
-
 def specload(file, show=True):
     raw = hs.load(file)
     if isinstance(raw, list):
@@ -58,7 +61,6 @@ def specload(file, show=True):
     if len(energy)!= rawSI.z:
         energy = energy[:-1]
     return (rawSI.data, energy, pxscale, disp, params)
-
 
 def specload_dual(file, norm = False, type = "1"):
     """
@@ -152,7 +154,6 @@ def specload_dual(file, norm = False, type = "1"):
 
     return(energies, spectra, pxscale, disp, paramses)
 
-
 def get_hyperspy_data(hs_si):
     params=hs_si.axes_manager
     print(params)
@@ -218,68 +219,45 @@ def shear_y_img( img, angle=0 ):
     shear_matrix_ADF = [[1, a],[0, 1]]
     img_shear =affine_transform(img, shear_matrix_ADF, order=1)
     return img_shear
-    
-def fit_zeroloss_si( si, es, pk_func=ls.gaussian, e_bound=(-10,10), d_func=ls.d_gaussian, ftol = 1e-5 ):
-    (ny, nx, ne) = si.shape
 
-    e_bound_ind = ( np.argmin( np.abs( es-e_bound[0] )),np.argmin( np.abs( es-e_bound[1] )) )
+def fit_feature_si( si, eaxis, model, e_bound, params=None ):
 
-    e_fit = es[  e_bound_ind[0]:e_bound_ind[1] ]
-    si_fit = si[ :,:, e_bound_ind[0]:e_bound_ind[1] ].copy()
+    if len(np.shape(si)) == 2:
+        tempx,tempz = np.shape(si)
+        si = np.reshape(si,(tempx,1,tempz))
+    if len(np.shape(si)) == 1:
+        tempz = len(si)
+        si = np.reshape(si,(1,1,tempz))
 
-    A0s = np.zeros( (ny,nx) )
-    e0s = np.zeros( (ny,nx) )
-    sgs = np.zeros( (ny,nx) )
+    (ny,nx,nz) = np.shape(si)
 
+    emin,emax = np.searchsorted( eaxis, e_bound)
 
-    pbar = tqdm_notebook(total = (nx)*(ny),desc = "Fitting Zeroloss Peak")
+    si_sub = si[:,:, emin:emax]
+    es_sub = eaxis[emin:emax]
+
+    si_mean = np.mean( si_sub, axis=(0,1))
+    if params is None:
+        params = model.guess( data=si_mean, x=es_sub)#,center=es_sub[np.argmax(si_mean)])
+        result = model.fit( si_mean, params=params, x=es_sub)
+        params = result.params
+
+    results = np.empty( (ny,nx),dtype=object )
+
+    pbar = tqdm_notebook(total = (nx)*(ny),desc = "Fitting Features")
     for i in range(ny):
         for j in range(nx):
-            cur_spec = si_fit[i,j]
+            cur_data = si_sub[i,j,:]
+            results[i,j] = model.fit( cur_data, params = params, x=es_sub,
+                                     method='least_squares')
 
-            ind_max = np.argmax( cur_spec )
-            A0 = cur_spec[ind_max]
-            e0 = e_fit[ind_max]
-            ind_hm = np.argmin( np.abs( cur_spec-A0/2 ) )
-            gm0 = np.abs( e_fit[ind_max] - e_fit[ind_hm] )
-            sg0 = gm0/np.sqrt(2*np.log(2))
-
-
-            params = [A0, e0, sg0]
-            bounds = ([A0/2,e0-2, sg0/2],
-                      [A0*2,e0+2, sg0*2])
-            # print( params)
-            # print( bounds)
-            try:
-                p_fit, cov_fit = curve_fit( pk_func, e_fit, cur_spec, p0=params, bounds=bounds, 
-                                        method='trf',jac=d_func, ftol=ftol, gtol=ftol )
-                A0s[i,j] = p_fit[0]
-                e0s[i,j] = p_fit[1]
-                sgs[i,j] = p_fit[2]
-            except:
-                fig,ax = plt.subplots(1)
-                plt.plot( e_fit, cur_spec )
-                return
-                ""
-            
-
-            # if i ==0 and j==0 :
-            #     fig,ax = plt.subplots(1)
-            #     plt.plot( e_fit, cur_spec )
-            #     print( params )``
-            #     print( bounds)
-            #     plt.plot( e_fit, pk_func(e_fit,*p_fit))
-            #     plt.vlines( [0,e0s[0,0]], 0, A0s[i,j])
-            #     # ax.set_xlim(-5,5)
-            #     return
-            
             pbar.update(1)
     pbar.close()
 
+    return results
+    
 
-    return A0s, e0s, sgs
-
-def shift_zeroloss_SI( si, es, shifts ):
+def shift_SI( si, es, shifts ):
     (ny, nx, ne) = si.shape
     si_shifted = si.copy()
 
