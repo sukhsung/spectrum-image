@@ -22,10 +22,24 @@ class SpectrumImage :
 
         self.xaxis = xaxis
         self.yaxis = yaxis
-        
+
     def fitbrowser( self, edge=None, cmap='gray', figsize=(9,6)):
+        self.FitBrowser = FitBrowser(  si = self.si, adf=self.adf, 
+                                   eaxis=self.eaxis,xaxis=self.xaxis, yaxis=self.yaxis,
+                                   edge=edge, cmap=cmap, figsize=figsize )
+
+        
+class FitBrowser:
+    
+    def __init__( self, si,adf,eaxis,xaxis,yaxis,edge=None, cmap='gray', figsize=(9,6)):
         
         ## Initialize browser object
+        self.si = si
+        (self.ny, self.nx, self.ne) = self.si.shape
+        self.adf = adf
+        self.eaxis = eaxis
+        self.xaxis = xaxis
+        self.yaxis = yaxis
         self.spectrum1 = np.mean(self.si,axis=(0,1))
         self.spectrum2 = np.mean(self.si,axis=(0,1))
 
